@@ -17,6 +17,7 @@ Générateur de mires de test professionnelles pour Resolume Arena avec support 
 
 ### Fonctionnalités Principales
 ✅ **Import XML Resolume** - Parse automatiquement les slices et dimensions
+✅ **Navigation Advanced Input/Output** - Basculez entre l'input et l'output avancé de Resolume pour visualiser et exporter selon votre besoin
 ✅ **Génération Responsive** - Les patterns s'adaptent automatiquement aux dimensions de chaque slice
 ✅ **Personnalisation Complète** - Couleurs, grille, texte, UFOs, diagonale
 ✅ **Mode Windows XP** - Interface authentique Windows XP (toggleable)
@@ -42,7 +43,13 @@ npm run build
 ## 📖 Utilisation
 
 ### 1. Importer votre XML Resolume
-Cliquez sur "Import Resolume XML" et sélectionnez votre fichier d'export Resolume Arena (Advanced Output).
+Cliquez sur "Import Resolume XML" et sélectionnez votre fichier d'export Resolume Arena.
+
+**Nouveau !** Après l'import, vous pouvez choisir entre :
+- **Advanced Output** (par défaut) - Visualise et exporte selon la sortie configurée dans Resolume
+- **Advanced Input** - Visualise et exporte selon l'entrée source de la composition
+
+Basculez entre les deux modes avec les boutons sous l'import pour mieux comprendre votre mapping.
 
 ### 2. Sélectionner un Pattern
 Choisissez parmi les 9 patterns professionnels disponibles :

@@ -73,3 +73,5 @@ export interface BrandingConfig {
   logo?: HTMLImageElement;
   showCentralBranding: boolean;
 }
+
+export type ViewMode = 'input' | 'output';

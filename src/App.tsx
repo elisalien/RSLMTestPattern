@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
-import { Upload, Download, Settings, Eye, Grid3x3, Palette, Image as ImageIcon, Type } from 'lucide-react';
+import { Upload, Download, Settings, Eye, Grid3x3, Palette, Image as ImageIcon, Type, Layers } from 'lucide-react';
 import { resolumeParser } from './utils/resolume-parser';
 import { patternGenerator } from './utils/pattern-generator';
-import { ResolumeSetup, SliceData, PatternType, PatternConfig, StylePreset, BrandingConfig } from './types';
+import { ResolumeSetup, SliceData, PatternType, PatternConfig, StylePreset, BrandingConfig, ViewMode } from './types';
 import chroma from 'chroma-js';
 
 // Color palettes for auto-generation
@@ -17,6 +17,8 @@ const COLOR_PALETTES = {
 function App() {
   // State management
   const [resolumeSetup, setResolumeSetup] = useState<ResolumeSetup | null>(null);
+  const [rawXML, setRawXML] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>('output');
   const [selectedPattern, setSelectedPattern] = useState<PatternType>('resolume');
   const [stylePreset, setStylePreset] = useState<StylePreset>('modern');
   const [xpMode, setXpMode] = useState(false);
@@ -71,8 +73,9 @@ function App() {
     const reader = new FileReader();
     reader.onload = (e) => {
       const xmlContent = e.target?.result as string;
-      const setup = resolumeParser.parse(xmlContent);
-      
+      setRawXML(xmlContent);
+      const setup = resolumeParser.parse(xmlContent, viewMode);
+
       if (setup) {
         setResolumeSetup(setup);
         // Generate random colors for each slice
@@ -83,6 +86,21 @@ function App() {
     };
     reader.readAsText(file);
   };
+
+  // Re-parse when view mode changes
+  useEffect(() => {
+    if (rawXML) {
+      const setup = resolumeParser.parse(rawXML, viewMode);
+      if (setup) {
+        setResolumeSetup(setup);
+        // Preserve existing colors when switching modes
+        // Only generate new colors if we don't have them yet
+        if (sliceColors.size === 0) {
+          generateSliceColors(setup.slices);
+        }
+      }
+    }
+  }, [viewMode, rawXML]);
 
   // Handle logo upload
   const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -168,7 +186,8 @@ function App() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      const filename = `${branding.name || resolumeSetup.name}_${selectedPattern}_${resolumeSetup.compositionSize.width}x${resolumeSetup.compositionSize.height}.png`;
+      const modeLabel = viewMode === 'output' ? 'Output' : 'Input';
+      const filename = `${branding.name || resolumeSetup.name}_${selectedPattern}_${modeLabel}_${resolumeSetup.compositionSize.width}x${resolumeSetup.compositionSize.height}.png`;
       a.download = filename;
       a.click();
       URL.revokeObjectURL(url);
@@ -219,9 +238,37 @@ function App() {
                 Import Resolume XML
               </button>
               {resolumeSetup && (
-                <p className={xpMode ? 'mt-2 text-sm' : 'mt-2 text-sm text-gray-300'}>
-                  ✓ {resolumeSetup.slices.length} slices | {resolumeSetup.compositionSize.width}×{resolumeSetup.compositionSize.height}
-                </p>
+                <div>
+                  <p className={xpMode ? 'mt-2 text-sm' : 'mt-2 text-sm text-gray-300'}>
+                    ✓ {resolumeSetup.slices.length} slices | {resolumeSetup.compositionSize.width}×{resolumeSetup.compositionSize.height}
+                  </p>
+                  <div className="mt-3 flex items-center gap-2">
+                    <Layers size={16} className="text-cyan-400" />
+                    <span className="text-xs text-gray-400">Mode de visualisation:</span>
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => setViewMode('output')}
+                        className={`px-3 py-1 text-xs rounded transition ${
+                          viewMode === 'output'
+                            ? 'bg-cyan-500 text-white font-bold'
+                            : xpMode ? 'xp-button text-xs' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                        }`}
+                      >
+                        Advanced Output
+                      </button>
+                      <button
+                        onClick={() => setViewMode('input')}
+                        className={`px-3 py-1 text-xs rounded transition ${
+                          viewMode === 'input'
+                            ? 'bg-cyan-500 text-white font-bold'
+                            : xpMode ? 'xp-button text-xs' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                        }`}
+                      >
+                        Advanced Input
+                      </button>
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
             
@@ -444,7 +491,7 @@ function App() {
                   className={xpMode ? 'xp-button text-lg py-3 px-8' : 'flex items-center gap-2 px-8 py-4 bg-green-600 text-white rounded-lg hover:bg-green-700 text-lg font-bold'}
                 >
                   <Download size={24} />
-                  Exporter la Composition Complète ({resolumeSetup.compositionSize.width}×{resolumeSetup.compositionSize.height})
+                  Exporter la Composition {viewMode === 'output' ? 'Advanced Output' : 'Advanced Input'} ({resolumeSetup.compositionSize.width}×{resolumeSetup.compositionSize.height})
                 </button>
               </div>
 
