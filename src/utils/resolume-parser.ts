@@ -1,5 +1,5 @@
 import { XMLParser } from 'fast-xml-parser';
-import { ResolumeSetup, SliceData } from '../types';
+import { ResolumeSetup, SliceData, ViewMode } from '../types';
 
 export class ResolumeXMLParser {
   private parser: XMLParser;
@@ -13,7 +13,7 @@ export class ResolumeXMLParser {
     });
   }
 
-  parse(xmlString: string): ResolumeSetup | null {
+  parse(xmlString: string, viewMode: ViewMode = 'output'): ResolumeSetup | null {
     try {
       const result = this.parser.parse(xmlString);
       const xmlState = result.XmlState;
@@ -38,7 +38,7 @@ export class ResolumeXMLParser {
       const sliceArray = Array.isArray(layers.Slice) ? layers.Slice : [layers.Slice];
 
       const slices: SliceData[] = sliceArray.map((slice: any) => {
-        return this.parseSlice(slice);
+        return this.parseSlice(slice, viewMode);
       });
 
       return {
@@ -58,22 +58,25 @@ export class ResolumeXMLParser {
     }
   }
 
-  private parseSlice(slice: any): SliceData {
+  private parseSlice(slice: any, viewMode: ViewMode = 'output'): SliceData {
     const id = slice['@_uniqueId']?.toString() || Date.now().toString();
-    
+
     // Get slice name
     const nameParam = this.findParam(slice.Params, 'Name');
     const name = nameParam?.['@_value'] || 'Unnamed Slice';
 
-    // Parse OutputRect to get dimensions and position
+    // Parse both rects
     const outputRect = this.parseRect(slice.OutputRect);
     const inputRect = this.parseRect(slice.InputRect);
 
-    // Calculate width and height from outputRect
-    const width = Math.abs(outputRect[1].x - outputRect[0].x);
-    const height = Math.abs(outputRect[2].y - outputRect[1].y);
-    const x = Math.min(outputRect[0].x, outputRect[1].x);
-    const y = Math.min(outputRect[0].y, outputRect[1].y);
+    // Select which rect to use based on viewMode
+    const activeRect = viewMode === 'input' ? inputRect : outputRect;
+
+    // Calculate width and height from the selected rect
+    const width = Math.abs(activeRect[1].x - activeRect[0].x);
+    const height = Math.abs(activeRect[2].y - activeRect[1].y);
+    const x = Math.min(activeRect[0].x, activeRect[1].x);
+    const y = Math.min(activeRect[0].y, activeRect[1].y);
 
     return {
       id,
