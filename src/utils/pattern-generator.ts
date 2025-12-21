@@ -101,7 +101,7 @@ export class TestPatternGenerator {
 
     // Draw slice border
     this.ctx.strokeStyle = '#ffffff';
-    this.ctx.lineWidth = 2;
+    this.ctx.lineWidth = 3;
     this.ctx.strokeRect(x, y, width, height);
 
     // Draw slice label
@@ -117,8 +117,37 @@ export class TestPatternGenerator {
     const { x, y, width, height } = slice;
     const cellSize = config.gridSize || 96;
 
+    const cols = Math.ceil(width / cellSize);
+    const rows = Math.ceil(height / cellSize);
+
+    // Generate color palette for cells (6 vibrant colors)
+    const cellColors = [
+      '#8B008B', // Dark Magenta
+      '#006666', // Teal
+      '#6B8E23', // Olive
+      '#8B0000', // Dark Red
+      '#00008B', // Dark Blue
+      '#006400', // Dark Green
+    ];
+
+    // Fill cells with alternating colors and draw grid
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < cols; col++) {
+        const cellX = x + col * cellSize;
+        const cellY = y + row * cellSize;
+        const cellWidth = Math.min(cellSize, width - col * cellSize);
+        const cellHeight = Math.min(cellSize, height - row * cellSize);
+
+        // Alternate colors in checkerboard pattern
+        const colorIndex = (row * cols + col) % cellColors.length;
+        this.ctx.fillStyle = cellColors[colorIndex];
+        this.ctx.fillRect(cellX, cellY, cellWidth, cellHeight);
+      }
+    }
+
+    // Draw grid lines on top
     this.ctx.strokeStyle = config.gridColor;
-    this.ctx.lineWidth = 1;
+    this.ctx.lineWidth = 2;
 
     // Vertical lines
     for (let gridX = 0; gridX <= width; gridX += cellSize) {
@@ -136,22 +165,23 @@ export class TestPatternGenerator {
       this.ctx.stroke();
     }
 
-    // Cell numbers
-    this.ctx.fillStyle = config.textColor;
-    this.ctx.font = `${Math.min(cellSize / 4, 14)}px monospace`;
+    // Draw cell numbers
+    this.ctx.fillStyle = '#FFFFFF';
+    this.ctx.font = `bold ${Math.min(cellSize / 5, 18)}px Arial`;
     this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'middle';
-
-    const cols = Math.ceil(width / cellSize);
-    const rows = Math.ceil(height / cellSize);
+    this.ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+    this.ctx.shadowBlur = 4;
 
     for (let row = 0; row < rows; row++) {
       for (let col = 0; col < cols; col++) {
-        const cellX = x + col * cellSize + cellSize / 2;
-        const cellY = y + row * cellSize + cellSize / 2;
-        this.ctx.fillText(`${col + 1},${row + 1}`, cellX, cellY);
+        const cellCenterX = x + col * cellSize + cellSize / 2;
+        const cellCenterY = y + row * cellSize + cellSize / 2;
+        this.ctx.fillText(`${col + 1},${row + 1}`, cellCenterX, cellCenterY);
       }
     }
+
+    this.ctx.shadowBlur = 0;
   }
 
   /**
@@ -251,31 +281,34 @@ export class TestPatternGenerator {
    */
   private drawSliceLabel(slice: SliceData, config: PatternConfig) {
     const { x, y, width, height, name } = slice;
-    
+
     this.ctx.save();
-    this.ctx.font = `bold ${Math.max(16, Math.min(width / 15, 24))}px Arial`;
-    this.ctx.fillStyle = config.textColor;
-    this.ctx.textAlign = 'center';
-    this.ctx.textBaseline = 'middle';
-    
-    // Shadow for visibility
+
+    // Shadow for all text
     this.ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
-    this.ctx.shadowBlur = 6;
+    this.ctx.shadowBlur = 8;
     this.ctx.shadowOffsetX = 2;
     this.ctx.shadowOffsetY = 2;
-    
-    // Name
-    this.ctx.fillText(name, x + width / 2, y + height / 2 - 20);
-    
-    // Dimensions
-    this.ctx.font = `${Math.max(12, Math.min(width / 20, 16))}px monospace`;
-    this.ctx.fillText(`${width}×${height}`, x + width / 2, y + height / 2 + 5);
-    
-    // Position (top-left corner)
-    this.ctx.font = `${Math.max(10, Math.min(width / 25, 12))}px monospace`;
+
+    // TL position label (top-left corner)
+    this.ctx.font = `bold ${Math.max(12, Math.min(width / 30, 16))}px Arial`;
+    this.ctx.fillStyle = '#FFFF00'; // Yellow for TL label
     this.ctx.textAlign = 'left';
-    this.ctx.fillText(`TL:${x},${y}`, x + 10, y + 20);
-    
+    this.ctx.textBaseline = 'top';
+    this.ctx.fillText(`TL:${x},${y}`, x + 8, y + 8);
+
+    // Slice name (center)
+    this.ctx.font = `bold ${Math.max(20, Math.min(width / 12, 32))}px Arial`;
+    this.ctx.fillStyle = '#FFFF00'; // Yellow like in the reference
+    this.ctx.textAlign = 'center';
+    this.ctx.textBaseline = 'middle';
+    this.ctx.fillText(name.toUpperCase(), x + width / 2, y + height / 2 - 10);
+
+    // Dimensions below name
+    this.ctx.font = `${Math.max(14, Math.min(width / 20, 18))}px monospace`;
+    this.ctx.fillStyle = '#FFFFFF';
+    this.ctx.fillText(`${width}×${height}`, x + width / 2, y + height / 2 + 20);
+
     this.ctx.restore();
   }
 
