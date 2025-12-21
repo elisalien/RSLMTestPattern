@@ -1,4 +1,5 @@
 import { PatternConfig, SliceData } from '../types';
+import { compositePatternGenerator } from './composite-pattern-generator';
 
 export class TestPatternGenerator {
   private canvas: HTMLCanvasElement;
@@ -12,7 +13,322 @@ export class TestPatternGenerator {
   }
 
   /**
-   * Generate pattern for a specific slice
+   * Generate COMPLETE composition with all slices positioned correctly
+   */
+  generateComposition(
+    slices: SliceData[], 
+    compositionWidth: number, 
+    compositionHeight: number,
+    config: PatternConfig,
+    sliceColors: Map<string, string>,
+    logo?: HTMLImageElement,
+    brandName?: string
+  ): HTMLCanvasElement {
+    // Create canvas at composition size
+    this.canvas.width = compositionWidth;
+    this.canvas.height = compositionHeight;
+    
+    // Black background
+    this.ctx.fillStyle = '#000000';
+    this.ctx.fillRect(0, 0, compositionWidth, compositionHeight);
+
+    // Use composite generator for new pattern types
+    const compositeTypes = ['complete-pro', 'minimal-geometric', 'gradient-paradise', 
+                           'glassmorphic', 'retro-future', 'neo-brutalism'];
+    
+    if (compositeTypes.includes(config.type)) {
+      // Use advanced composite generator
+      compositePatternGenerator.setCanvas(this.canvas);
+      slices.forEach(slice => {
+        const sliceColor = sliceColors.get(slice.id) || config.backgroundColor;
+        compositePatternGenerator.generateInSlice(slice, config, sliceColor);
+      });
+    } else {
+      // Use legacy generator for classic patterns
+      slices.forEach(slice => {
+        const sliceColor = sliceColors.get(slice.id) || config.backgroundColor;
+        this.drawSliceInComposition(slice, config, sliceColor);
+      });
+    }
+
+    // Draw central logo if provided
+    if (logo && brandName) {
+      this.drawCentralBranding(logo, brandName, compositionWidth, compositionHeight);
+    }
+
+    // Draw global overlay grid (optional)
+    if (config.showDiagonal) {
+      this.drawGlobalOverlay(compositionWidth, compositionHeight, config);
+    }
+
+    return this.canvas;
+  }
+
+  /**
+   * Draw a single slice within the composition
+   */
+  private drawSliceInComposition(slice: SliceData, config: PatternConfig, sliceColor: string) {
+    const { x, y, width, height } = slice;
+
+    // Save context
+    this.ctx.save();
+    
+    // Clip to slice area
+    this.ctx.beginPath();
+    this.ctx.rect(x, y, width, height);
+    this.ctx.clip();
+
+    // Fill with slice color
+    this.ctx.fillStyle = sliceColor;
+    this.ctx.fillRect(x, y, width, height);
+
+    // Draw pattern elements based on type
+    switch (config.type) {
+      case 'pixel-grid':
+        this.drawPixelGridInSlice(slice, config);
+        break;
+      case 'crosshatch':
+        this.drawCrosshatchInSlice(slice, config);
+        break;
+      case 'resolume':
+      default:
+        this.drawResolumeInSlice(slice, config);
+        break;
+    }
+
+    // Restore context
+    this.ctx.restore();
+
+    // Draw slice border
+    this.ctx.strokeStyle = '#ffffff';
+    this.ctx.lineWidth = 2;
+    this.ctx.strokeRect(x, y, width, height);
+
+    // Draw slice label
+    if (config.showText) {
+      this.drawSliceLabel(slice, config);
+    }
+  }
+
+  /**
+   * Draw pixel grid pattern within a slice
+   */
+  private drawPixelGridInSlice(slice: SliceData, config: PatternConfig) {
+    const { x, y, width, height } = slice;
+    const cellSize = config.gridSize || 96;
+
+    this.ctx.strokeStyle = config.gridColor;
+    this.ctx.lineWidth = 1;
+
+    // Vertical lines
+    for (let gridX = 0; gridX <= width; gridX += cellSize) {
+      this.ctx.beginPath();
+      this.ctx.moveTo(x + gridX, y);
+      this.ctx.lineTo(x + gridX, y + height);
+      this.ctx.stroke();
+    }
+
+    // Horizontal lines
+    for (let gridY = 0; gridY <= height; gridY += cellSize) {
+      this.ctx.beginPath();
+      this.ctx.moveTo(x, y + gridY);
+      this.ctx.lineTo(x + width, y + gridY);
+      this.ctx.stroke();
+    }
+
+    // Cell numbers
+    this.ctx.fillStyle = config.textColor;
+    this.ctx.font = `${Math.min(cellSize / 4, 14)}px monospace`;
+    this.ctx.textAlign = 'center';
+    this.ctx.textBaseline = 'middle';
+
+    const cols = Math.ceil(width / cellSize);
+    const rows = Math.ceil(height / cellSize);
+
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < cols; col++) {
+        const cellX = x + col * cellSize + cellSize / 2;
+        const cellY = y + row * cellSize + cellSize / 2;
+        this.ctx.fillText(`${col + 1},${row + 1}`, cellX, cellY);
+      }
+    }
+  }
+
+  /**
+   * Draw crosshatch pattern within a slice
+   */
+  private drawCrosshatchInSlice(slice: SliceData, config: PatternConfig) {
+    const { x, y, width, height } = slice;
+    const gridSize = config.gridSize || 50;
+
+    this.ctx.strokeStyle = config.gridColor;
+    this.ctx.lineWidth = 1;
+
+    // Grid lines
+    for (let gridX = 0; gridX <= width; gridX += gridSize) {
+      this.ctx.beginPath();
+      this.ctx.moveTo(x + gridX, y);
+      this.ctx.lineTo(x + gridX, y + height);
+      this.ctx.stroke();
+    }
+
+    for (let gridY = 0; gridY <= height; gridY += gridSize) {
+      this.ctx.beginPath();
+      this.ctx.moveTo(x, y + gridY);
+      this.ctx.lineTo(x + width, y + gridY);
+      this.ctx.stroke();
+    }
+
+    // Corner circles
+    const circleRadius = Math.min(width, height) * 0.08;
+    this.ctx.lineWidth = 2;
+    
+    [[x + circleRadius, y + circleRadius],
+     [x + width - circleRadius, y + circleRadius],
+     [x + width - circleRadius, y + height - circleRadius],
+     [x + circleRadius, y + height - circleRadius]].forEach(([cx, cy]) => {
+      this.ctx.beginPath();
+      this.ctx.arc(cx, cy, circleRadius, 0, 2 * Math.PI);
+      this.ctx.stroke();
+    });
+  }
+
+  /**
+   * Draw Resolume-style pattern within a slice
+   */
+  private drawResolumeInSlice(slice: SliceData, config: PatternConfig) {
+    const { x, y, width, height } = slice;
+    const gridSize = Math.max(30, Math.min(width, height) / 16);
+
+    this.ctx.strokeStyle = config.gridColor;
+    this.ctx.lineWidth = 1;
+
+    // Grid
+    for (let gridX = 0; gridX <= width; gridX += gridSize) {
+      this.ctx.globalAlpha = (gridX % (gridSize * 4) === 0) ? 0.8 : 0.3;
+      this.ctx.beginPath();
+      this.ctx.moveTo(x + gridX, y);
+      this.ctx.lineTo(x + gridX, y + height);
+      this.ctx.stroke();
+    }
+
+    for (let gridY = 0; gridY <= height; gridY += gridSize) {
+      this.ctx.globalAlpha = (gridY % (gridSize * 4) === 0) ? 0.8 : 0.3;
+      this.ctx.beginPath();
+      this.ctx.moveTo(x, y + gridY);
+      this.ctx.lineTo(x + width, y + gridY);
+      this.ctx.stroke();
+    }
+    this.ctx.globalAlpha = 1;
+
+    // Center cross
+    this.ctx.strokeStyle = '#FF0000';
+    this.ctx.lineWidth = 2;
+    const centerX = x + width / 2;
+    const centerY = y + height / 2;
+    const crossSize = Math.min(width, height) * 0.1;
+    
+    this.ctx.beginPath();
+    this.ctx.moveTo(centerX - crossSize, centerY);
+    this.ctx.lineTo(centerX + crossSize, centerY);
+    this.ctx.moveTo(centerX, centerY - crossSize);
+    this.ctx.lineTo(centerX, centerY + crossSize);
+    this.ctx.stroke();
+
+    // Diagonal
+    if (config.showDiagonal) {
+      this.ctx.strokeStyle = '#00FF00';
+      this.ctx.lineWidth = 1;
+      this.ctx.beginPath();
+      this.ctx.moveTo(x, y);
+      this.ctx.lineTo(x + width, y + height);
+      this.ctx.stroke();
+    }
+  }
+
+  /**
+   * Draw slice label (name, dimensions, position)
+   */
+  private drawSliceLabel(slice: SliceData, config: PatternConfig) {
+    const { x, y, width, height, name } = slice;
+    
+    this.ctx.save();
+    this.ctx.font = `bold ${Math.max(16, Math.min(width / 15, 24))}px Arial`;
+    this.ctx.fillStyle = config.textColor;
+    this.ctx.textAlign = 'center';
+    this.ctx.textBaseline = 'middle';
+    
+    // Shadow for visibility
+    this.ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+    this.ctx.shadowBlur = 6;
+    this.ctx.shadowOffsetX = 2;
+    this.ctx.shadowOffsetY = 2;
+    
+    // Name
+    this.ctx.fillText(name, x + width / 2, y + height / 2 - 20);
+    
+    // Dimensions
+    this.ctx.font = `${Math.max(12, Math.min(width / 20, 16))}px monospace`;
+    this.ctx.fillText(`${width}×${height}`, x + width / 2, y + height / 2 + 5);
+    
+    // Position (top-left corner)
+    this.ctx.font = `${Math.max(10, Math.min(width / 25, 12))}px monospace`;
+    this.ctx.textAlign = 'left';
+    this.ctx.fillText(`TL:${x},${y}`, x + 10, y + 20);
+    
+    this.ctx.restore();
+  }
+
+  /**
+   * Draw central logo and branding
+   */
+  private drawCentralBranding(logo: HTMLImageElement, brandName: string, width: number, height: number) {
+    const centerX = width / 2;
+    const centerY = height / 2;
+    
+    // Draw logo
+    const logoSize = Math.min(width, height) * 0.15;
+    this.ctx.drawImage(
+      logo,
+      centerX - logoSize / 2,
+      centerY - logoSize / 2,
+      logoSize,
+      logoSize
+    );
+
+    // Draw brand name below logo
+    this.ctx.save();
+    this.ctx.font = 'bold 48px Arial';
+    this.ctx.fillStyle = '#ffffff';
+    this.ctx.textAlign = 'center';
+    this.ctx.textBaseline = 'top';
+    this.ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+    this.ctx.shadowBlur = 8;
+    this.ctx.fillText(brandName, centerX, centerY + logoSize / 2 + 20);
+    this.ctx.restore();
+  }
+
+  /**
+   * Draw global overlay (optional)
+   */
+  private drawGlobalOverlay(width: number, height: number, config: PatternConfig) {
+    // Diagonal lines corner to corner
+    this.ctx.strokeStyle = config.gridColor;
+    this.ctx.lineWidth = 2;
+    this.ctx.globalAlpha = 0.3;
+    
+    this.ctx.beginPath();
+    this.ctx.moveTo(0, 0);
+    this.ctx.lineTo(width, height);
+    this.ctx.moveTo(width, 0);
+    this.ctx.lineTo(0, height);
+    this.ctx.stroke();
+    
+    this.ctx.globalAlpha = 1;
+  }
+
+  /**
+   * Generate pattern for a specific slice (legacy method for compatibility)
    */
   generate(slice: SliceData, config: PatternConfig): HTMLCanvasElement {
     this.canvas.width = slice.width;

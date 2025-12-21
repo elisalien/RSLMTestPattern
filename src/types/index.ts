@@ -25,15 +25,26 @@ export interface ResolumeSetup {
 }
 
 export type PatternType = 
+  | 'complete-pro'
+  | 'minimal-geometric'
+  | 'gradient-paradise'
+  | 'glassmorphic'
+  | 'retro-future'
+  | 'neo-brutalism'
   | 'smpte-75'
-  | 'smpte-100'
-  | 'ebu-75'
   | 'crosshatch'
-  | 'monoscope'
-  | 'zone-plate'
-  | 'gradient-ramp'
   | 'pixel-grid'
   | 'resolume';
+
+export type StylePreset = 
+  | 'modern'
+  | 'windows-xp'
+  | 'philips-pm5544'
+  | 'bbc-test-card'
+  | 'smpte-classic'
+  | 'retro-crt'
+  | 'commodore-64'
+  | 'teletext';
 
 export interface PatternConfig {
   type: PatternType;
@@ -46,6 +57,7 @@ export interface PatternConfig {
   gridSize: number;
   fontSize: number;
   customText?: string;
+  stylePreset?: StylePreset;
 }
 
 export interface ExportOptions {
@@ -54,4 +66,10 @@ export interface ExportOptions {
   exportAll: boolean;
   autoSave: boolean;
   namingPattern: string;
+}
+
+export interface BrandingConfig {
+  name: string;
+  logo?: HTMLImageElement;
+  showCentralBranding: boolean;
 }

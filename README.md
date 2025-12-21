@@ -134,4 +134,3 @@ Testé avec Resolume Arena 7+ sur des setups LED complexes
 ---
 
 **Made with ❤️ for VJs, by VJs**
-"# RSLMTestPattern" 
