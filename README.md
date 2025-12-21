@@ -16,15 +16,19 @@ Générateur de mires de test professionnelles pour Resolume Arena avec support 
 - **Resolume Pattern** - Mire style Resolume avec grille et marqueurs
 
 ### Fonctionnalités Principales
-✅ **Import XML Resolume** - Parse automatiquement les slices et dimensions
+✅ **Import XML Resolume** - Parse automatiquement les slices et dimensions avec gestion d'erreurs avancée
 ✅ **Navigation Advanced Input/Output** - Basculez entre l'input et l'output avancé de Resolume pour visualiser et exporter selon votre besoin
+✅ **Compatibilité Améliorée** - Support robuste de différentes versions de Resolume Arena (6, 7, 8+)
 ✅ **Génération Responsive** - Les patterns s'adaptent automatiquement aux dimensions de chaque slice
 ✅ **Personnalisation Complète** - Couleurs, grille, texte, UFOs, diagonale
-✅ **Mode Windows XP** - Interface authentique Windows XP (toggleable)
+✅ **Interface Moderne** - UI/UX professionnelle avec animations fluides et design épuré
+✅ **États de Chargement** - Feedback visuel lors des opérations
+✅ **Design Responsive** - Optimisé pour tous les écrans
 ✅ **Gestion des Slices**
-   - Sélection multiple (Ctrl+clic)
-   - Export individuel ou en batch
+   - Vue composition complète
    - Preview temps réel
+   - Validation automatique
+   - Couleurs personnalisables par slice
 ✅ **Export PNG** - Export haute qualité jusqu'à 4K
 
 ## 🚀 Installation
@@ -78,24 +82,23 @@ Choisissez parmi les 9 patterns professionnels disponibles :
 - **Export batch** : "Exporter tout" pour toutes les slices sélectionnées
 - Format : PNG haute qualité
 
-## 🎨 Mode Windows XP
-Activez le mode nostalgique Windows XP pour une interface authentique style 2001 !
-- Barre de titre bleue dégradée
-- Boutons style XP
-- Couleurs et polices authentiques
-
 ## 🔧 Stack Technique
 - **React 18** + **TypeScript** - Framework moderne et type-safe
 - **Vite** - Build ultra-rapide
-- **Tailwind CSS** - Styling utilitaire
-- **fast-xml-parser** - Parsing XML Resolume
+- **Tailwind CSS** - Styling utilitaire avec classes personnalisées
+- **fast-xml-parser** - Parsing XML Resolume robuste
 - **Chroma.js** - Manipulation des couleurs
 - **Canvas API** - Génération des patterns
+- **Lucide React** - Icônes modernes et optimisées
+- **CSS Animations** - Transitions fluides et professionnelles
 
 ## 📐 Formats Supportés
 - **Résolutions** : De SD à 4K (3840×2160)
 - **Aspect Ratios** : Tous ratios supportés (16:9, 4:3, custom)
 - **XML** : Resolume Arena 6, 7, 8+
+  - Gestion automatique des écrans multiples
+  - Validation robuste des données
+  - Messages d'erreur détaillés pour le debugging
 
 ## 🎯 Cas d'Usage
 - **VJing Live** : Tester les outputs LED avant les shows
@@ -105,12 +108,14 @@ Activez le mode nostalgique Windows XP pour une interface authentique style 2001
 - **LED Walls** : Configuration de panels LED
 
 ## 📝 Structure XML Resolume
-Le parser extrait automatiquement :
+Le parser extrait automatiquement avec validation :
 - **Nom des slices** - Identifiant de chaque zone
-- **Dimensions** - Width × Height en pixels
-- **Position** - Coordonnées X, Y
-- **InputRect** - Zone dans la composition
-- **OutputRect** - Zone de sortie réelle
+- **Dimensions** - Width × Height en pixels (arrondis automatiquement)
+- **Position** - Coordonnées X, Y (validation des valeurs)
+- **InputRect** - Zone dans la composition source
+- **OutputRect** - Zone de sortie réelle sur l'écran
+- **Gestion d'erreurs** - Logs détaillés pour identifier les problèmes
+- **Fallback intelligent** - Valeurs par défaut si données manquantes
 
 ## 🌟 Inspirations
 Basé sur les standards professionnels :
