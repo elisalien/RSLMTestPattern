@@ -111,37 +111,60 @@ export class ResolumeXMLParser {
     const nameParam = this.findParam(slice.Params, 'Name');
     const name = nameParam?.['@_value'] || 'Unnamed Slice';
 
+    console.log(`🔍 Parsing slice "${name}":`, {
+      hasOutputRect: !!slice.OutputRect,
+      hasInputRect: !!slice.InputRect,
+      viewMode
+    });
+
     // Parse both rects
     const outputRect = this.parseRect(slice.OutputRect);
     const inputRect = this.parseRect(slice.InputRect);
 
+    console.log(`  OutputRect points:`, outputRect);
+    console.log(`  InputRect points:`, inputRect);
+
     // Validate that we have valid rectangles
-    if (outputRect.length < 3) {
-      console.warn(`Slice ${name} has invalid OutputRect, using defaults`);
+    if (outputRect.length < 4) {
+      console.warn(`  ⚠️ Slice ${name} has invalid OutputRect (${outputRect.length} points, need 4)`);
     }
-    if (inputRect.length < 3) {
-      console.warn(`Slice ${name} has invalid InputRect, using defaults`);
+    if (inputRect.length < 4) {
+      console.warn(`  ⚠️ Slice ${name} has invalid InputRect (${inputRect.length} points, need 4)`);
     }
 
     // Select which rect to use based on viewMode
     const activeRect = viewMode === 'input' ? inputRect : outputRect;
 
-    // Ensure we have at least 3 points to calculate dimensions
-    if (activeRect.length < 3) {
-      console.error(`Slice ${name} has insufficient points in active rect`);
-      throw new Error(`Invalid slice data for ${name}`);
+    // Ensure we have at least 4 points (rectangle vertices)
+    if (activeRect.length < 4) {
+      console.error(`  ❌ Slice ${name} has insufficient points in ${viewMode} rect (${activeRect.length}/4)`);
+      throw new Error(`Invalid slice data for ${name}: only ${activeRect.length} points in ${viewMode} rect`);
     }
 
-    // Calculate width and height from the selected rect
-    const width = Math.abs(activeRect[1].x - activeRect[0].x);
-    const height = Math.abs(activeRect[2].y - activeRect[1].y);
-    const x = Math.min(activeRect[0].x, activeRect[1].x);
-    const y = Math.min(activeRect[0].y, activeRect[1].y);
+    // Calculate bounding box from all 4 points
+    const xValues = activeRect.map(p => p.x);
+    const yValues = activeRect.map(p => p.y);
+
+    const minX = Math.min(...xValues);
+    const maxX = Math.max(...xValues);
+    const minY = Math.min(...yValues);
+    const maxY = Math.max(...yValues);
+
+    const width = maxX - minX;
+    const height = maxY - minY;
+    const x = minX;
+    const y = minY;
+
+    console.log(`  📐 Calculated dimensions:`, {
+      x, y, width, height,
+      xRange: `${minX} to ${maxX}`,
+      yRange: `${minY} to ${maxY}`
+    });
 
     // Validate dimensions
     if (width <= 0 || height <= 0) {
-      console.error(`Slice ${name} has invalid dimensions: ${width}x${height}`);
-      throw new Error(`Invalid dimensions for slice ${name}`);
+      console.error(`  ❌ Slice ${name} has invalid dimensions: ${width}x${height}`);
+      throw new Error(`Invalid dimensions for slice ${name}: ${width}x${height}`);
     }
 
     return {
