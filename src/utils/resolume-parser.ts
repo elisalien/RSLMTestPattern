@@ -68,15 +68,24 @@ export class ResolumeXMLParser {
       const sliceArray = Array.isArray(layers.Slice) ? layers.Slice : [layers.Slice];
 
       const slices: SliceData[] = sliceArray
-        .map((slice: any) => {
+        .map((slice: any, index: number) => {
           try {
-            return this.parseSlice(slice, viewMode);
+            const parsed = this.parseSlice(slice, viewMode);
+            console.log(`✓ Slice ${index + 1} parsed successfully:`, {
+              name: parsed.name,
+              dimensions: `${parsed.width}x${parsed.height}`,
+              position: `(${parsed.x}, ${parsed.y})`,
+              mode: viewMode
+            });
+            return parsed;
           } catch (error) {
-            console.error('Error parsing slice:', error);
+            console.error(`✗ Error parsing slice ${index + 1}:`, error);
             return null;
           }
         })
         .filter((slice): slice is SliceData => slice !== null);
+
+      console.log(`📊 Total slices loaded: ${slices.length} out of ${sliceArray.length} (mode: ${viewMode})`);
 
       return {
         name: xmlState['@_name'] || 'Resolume Setup',
