@@ -36,15 +36,12 @@ export type PatternType =
   | 'pixel-grid'
   | 'resolume';
 
-export type StylePreset = 
+export type StylePreset =
   | 'modern'
-  | 'windows-xp'
-  | 'philips-pm5544'
-  | 'bbc-test-card'
-  | 'smpte-classic'
   | 'retro-crt'
-  | 'commodore-64'
-  | 'teletext';
+  | 'bios'
+  | 'minitel'
+  | 'broadcast';
 
 export interface PatternConfig {
   type: PatternType;

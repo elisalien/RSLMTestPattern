@@ -21,7 +21,6 @@ function App() {
   const [viewMode, setViewMode] = useState<ViewMode>('output');
   const [selectedPattern, setSelectedPattern] = useState<PatternType>('resolume');
   const [stylePreset, setStylePreset] = useState<StylePreset>('modern');
-  const [xpMode, setXpMode] = useState(false);
   const [sliceColors, setSliceColors] = useState<Map<string, string>>(new Map());
   const [branding, setBranding] = useState<BrandingConfig>({
     name: '',
@@ -202,24 +201,19 @@ function App() {
   };
 
   return (
-    <div className={`min-h-screen ${xpMode ? 'bg-gradient-to-b from-blue-500 to-blue-600' : 'bg-gray-900'}`}>
+    <div className="min-h-screen bg-gray-900">
       {/* Header */}
-      <div className={xpMode ? 'xp-window m-4' : 'bg-gray-800 border-b border-gray-700'}>
-        <div className={xpMode ? 'xp-titlebar' : 'flex items-center justify-between p-4'}>
-          <h1 className={xpMode ? '' : 'text-2xl font-bold text-white'}>
-            🎬 Resolume Test Pattern Generator v2
-          </h1>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setXpMode(!xpMode)}
-              className={xpMode ? 'xp-button' : 'px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700'}
-            >
-              {xpMode ? '💿 Mode XP' : '💿 Windows XP'}
-            </button>
+      <div className="bg-gray-800 border-b border-gray-700">
+        <div className="flex items-center justify-between p-6">
+          <div>
+            <h1 className="text-3xl font-bold text-white">
+              🎬 Resolume Test Pattern Generator
+            </h1>
+            <p className="text-sm text-gray-400 mt-1">Professional test patterns for Resolume Arena</p>
           </div>
         </div>
-        
-        <div className={xpMode ? 'xp-content' : 'p-4 bg-gray-800'}>
+
+        <div className="p-6 bg-gray-800">
           {/* Upload Section */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             <div>
@@ -232,26 +226,26 @@ function App() {
               />
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className={xpMode ? 'xp-button w-full' : 'flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition w-full justify-center'}
+                className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition w-full justify-center"
               >
                 <Upload size={20} />
                 Import Resolume XML
               </button>
               {resolumeSetup && (
                 <div>
-                  <p className={xpMode ? 'mt-2 text-sm' : 'mt-2 text-sm text-gray-300'}>
+                  <p className="mt-2 text-sm text-gray-300">
                     ✓ {resolumeSetup.slices.length} slices | {resolumeSetup.compositionSize.width}×{resolumeSetup.compositionSize.height}
                   </p>
                   <div className="mt-3 flex items-center gap-2">
                     <Layers size={16} className="text-cyan-400" />
-                    <span className="text-xs text-gray-400">Mode de visualisation:</span>
+                    <span className="text-xs text-gray-400">View Mode:</span>
                     <div className="flex gap-1">
                       <button
                         onClick={() => setViewMode('output')}
                         className={`px-3 py-1 text-xs rounded transition ${
                           viewMode === 'output'
                             ? 'bg-cyan-500 text-white font-bold'
-                            : xpMode ? 'xp-button text-xs' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                            : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                         }`}
                       >
                         Advanced Output
@@ -261,7 +255,7 @@ function App() {
                         className={`px-3 py-1 text-xs rounded transition ${
                           viewMode === 'input'
                             ? 'bg-cyan-500 text-white font-bold'
-                            : xpMode ? 'xp-button text-xs' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                            : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                         }`}
                       >
                         Advanced Input
@@ -282,14 +276,14 @@ function App() {
               />
               <button
                 onClick={() => logoInputRef.current?.click()}
-                className={xpMode ? 'xp-button w-full' : 'flex items-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition w-full justify-center'}
+                className="flex items-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition w-full justify-center"
               >
                 <ImageIcon size={20} />
                 Upload Logo
               </button>
               {branding.logo && (
-                <p className={xpMode ? 'mt-2 text-sm' : 'mt-2 text-sm text-gray-300'}>
-                  ✓ Logo chargé
+                <p className="mt-2 text-sm text-gray-300">
+                  ✓ Logo loaded
                 </p>
               )}
             </div>
@@ -312,8 +306,8 @@ function App() {
                       type="text"
                       value={branding.name}
                       onChange={(e) => setBranding({ ...branding, name: e.target.value })}
-                      placeholder="VENTU, ton nom, ta société..."
-                      className={xpMode ? 'xp-input w-full' : 'w-full px-3 py-2 bg-gray-600 text-white rounded'}
+                      placeholder="Enter your name, company, or branding..."
+                      className="w-full px-3 py-2 bg-gray-600 text-white rounded"
                     />
                   </div>
                   <div className="flex items-end">
@@ -331,8 +325,8 @@ function App() {
 
               {/* Pattern Selection */}
               <div className="mb-6">
-                <h2 className={xpMode ? 'text-lg font-bold mb-3' : 'text-xl font-bold text-white mb-3'}>
-                  <Grid3x3 className="inline mr-2" size={24} />
+                <h2 className="text-xl font-bold text-white mb-3 flex items-center gap-2">
+                  <Grid3x3 size={24} />
                   Pattern & Style
                 </h2>
                 
@@ -367,10 +361,10 @@ function App() {
                         <button
                           key={preset.id}
                           onClick={() => applyStylePreset(preset.id as StylePreset)}
-                          className={`px-3 py-2 rounded text-sm ${
+                          className={`px-3 py-2 rounded text-sm transition ${
                             stylePreset === preset.id
-                              ? 'bg-blue-600 text-white'
-                              : xpMode ? 'xp-button' : 'bg-gray-700 hover:bg-gray-600 text-white'
+                              ? 'bg-blue-600 text-white font-bold'
+                              : 'bg-gray-700 hover:bg-gray-600 text-white'
                           }`}
                         >
                           {preset.name}
@@ -392,7 +386,7 @@ function App() {
                     <button
                       key={paletteName}
                       onClick={() => applyColorPalette(paletteName as keyof typeof COLOR_PALETTES)}
-                      className={xpMode ? 'xp-button' : 'px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded capitalize'}
+                      className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded capitalize transition"
                     >
                       {paletteName}
                     </button>
@@ -460,7 +454,7 @@ function App() {
                       max="200"
                       value={patternConfig.gridSize}
                       onChange={(e) => setPatternConfig({ ...patternConfig, gridSize: parseInt(e.target.value) })}
-                      className={xpMode ? 'xp-input w-full' : 'w-full px-3 py-2 bg-gray-600 text-white rounded'}
+                      className="w-full px-3 py-2 bg-gray-600 text-white rounded"
                     />
                   </div>
                 </div>
@@ -488,18 +482,18 @@ function App() {
               <div className="mb-6">
                 <button
                   onClick={exportComposition}
-                  className={xpMode ? 'xp-button text-lg py-3 px-8' : 'flex items-center gap-2 px-8 py-4 bg-green-600 text-white rounded-lg hover:bg-green-700 text-lg font-bold'}
+                  className="flex items-center gap-2 px-8 py-4 bg-green-600 text-white rounded-lg hover:bg-green-700 text-lg font-bold transition w-full justify-center"
                 >
                   <Download size={24} />
-                  Exporter la Composition {viewMode === 'output' ? 'Advanced Output' : 'Advanced Input'} ({resolumeSetup.compositionSize.width}×{resolumeSetup.compositionSize.height})
+                  Export Composition - {viewMode === 'output' ? 'Advanced Output' : 'Advanced Input'} ({resolumeSetup.compositionSize.width}×{resolumeSetup.compositionSize.height})
                 </button>
               </div>
 
               {/* Preview */}
               <div>
-                <h2 className={xpMode ? 'text-lg font-bold mb-3' : 'text-xl font-bold text-white mb-3 flex items-center gap-2'}>
+                <h2 className="text-xl font-bold text-white mb-3 flex items-center gap-2">
                   <Eye size={24} />
-                  Preview Composition Complète
+                  Composition Preview
                 </h2>
                 {compositionCanvas && (
                   <div className="canvas-preview bg-black rounded overflow-hidden max-w-full">
