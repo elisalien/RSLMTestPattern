@@ -21,11 +21,14 @@ Générateur de mires de test professionnelles pour Resolume Arena avec support 
 ✅ **Compatibilité Améliorée** - Support robuste de différentes versions de Resolume Arena (6, 7, 8+)
 ✅ **Génération Responsive** - Les patterns s'adaptent automatiquement aux dimensions de chaque slice
 ✅ **Personnalisation Complète** - Couleurs, grille, texte, UFOs, diagonale
-✅ **Interface Moderne** - UI épurée et intuitive
+✅ **Interface Moderne** - UI/UX professionnelle avec animations fluides et design épuré
+✅ **États de Chargement** - Feedback visuel lors des opérations
+✅ **Design Responsive** - Optimisé pour tous les écrans
 ✅ **Gestion des Slices**
    - Vue composition complète
    - Preview temps réel
    - Validation automatique
+   - Couleurs personnalisables par slice
 ✅ **Export PNG** - Export haute qualité jusqu'à 4K
 
 ## 🚀 Installation
@@ -82,10 +85,12 @@ Choisissez parmi les 9 patterns professionnels disponibles :
 ## 🔧 Stack Technique
 - **React 18** + **TypeScript** - Framework moderne et type-safe
 - **Vite** - Build ultra-rapide
-- **Tailwind CSS** - Styling utilitaire
-- **fast-xml-parser** - Parsing XML Resolume
+- **Tailwind CSS** - Styling utilitaire avec classes personnalisées
+- **fast-xml-parser** - Parsing XML Resolume robuste
 - **Chroma.js** - Manipulation des couleurs
 - **Canvas API** - Génération des patterns
+- **Lucide React** - Icônes modernes et optimisées
+- **CSS Animations** - Transitions fluides et professionnelles
 
 ## 📐 Formats Supportés
 - **Résolutions** : De SD à 4K (3840×2160)

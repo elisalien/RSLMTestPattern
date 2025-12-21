@@ -1,9 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
-import { Upload, Download, Settings, Eye, Grid3x3, Palette, Image as ImageIcon, Type, Layers } from 'lucide-react';
+import { Upload, Download, Settings, Eye, Grid3x3, Palette, Image as ImageIcon, Type, Layers, FileText } from 'lucide-react';
 import { resolumeParser } from './utils/resolume-parser';
 import { patternGenerator } from './utils/pattern-generator';
-import { ResolumeSetup, SliceData, PatternType, PatternConfig, StylePreset, BrandingConfig, ViewMode } from './types';
-import chroma from 'chroma-js';
+import { ResolumeSetup, PatternType, PatternConfig, StylePreset, BrandingConfig, ViewMode } from './types';
 
 // Color palettes for auto-generation
 const COLOR_PALETTES = {
@@ -12,7 +11,26 @@ const COLOR_PALETTES = {
   neon: ['#FF006E', '#FB5607', '#FFBE0B', '#8338EC', '#3A86FF', '#06FFA5', '#FF006E', '#FFBE0B'],
   broadcast: ['#0000FF', '#00FF00', '#00FFFF', '#FF0000', '#FF00FF', '#FFFF00', '#FFFFFF', '#808080'],
   minitel: ['#00FF00', '#FF00FF', '#00FFFF', '#FFFF00', '#FF0000', '#0000FF', '#FFFFFF', '#000000'],
-};
+} as const;
+
+const PATTERNS = [
+  { id: 'complete-pro', name: 'Complete Pro', icon: '🎯', description: 'Professional composite pattern' },
+  { id: 'minimal-geometric', name: 'Minimal Geometric', icon: '⭕', description: 'Clean Apple-style design' },
+  { id: 'gradient-paradise', name: 'Gradient Paradise', icon: '🌈', description: 'Vibrant multi-gradients' },
+  { id: 'glassmorphic', name: 'Glassmorphic', icon: '💎', description: 'Modern glass effect' },
+  { id: 'retro-future', name: 'Retro Future', icon: '⚡', description: 'CRT + Cyberpunk style' },
+  { id: 'neo-brutalism', name: 'Neo-Brutalism', icon: '🎪', description: 'Bold colors + hard shadows' },
+  { id: 'resolume', name: 'Resolume Classic', icon: '🎬', description: 'Classic Resolume pattern' },
+  { id: 'pixel-grid', name: 'Pixel Grid', icon: '#', description: 'LED panel numbering' },
+] as const;
+
+const STYLE_PRESETS = [
+  { id: 'modern', name: 'Modern', colors: { bg: '#1a1a1a', grid: '#00ff00', text: '#ffffff' } },
+  { id: 'retro-crt', name: 'Retro CRT', colors: { bg: '#000000', grid: '#00ff00', text: '#00ff00' } },
+  { id: 'bios', name: 'BIOS', colors: { bg: '#0000AA', grid: '#AAAAAA', text: '#FFFFFF' } },
+  { id: 'minitel', name: 'Minitel', colors: { bg: '#000000', grid: '#00FF00', text: '#00FF00' } },
+  { id: 'broadcast', name: 'Broadcast', colors: { bg: '#000000', grid: '#FFFFFF', text: '#FFFF00' } },
+] as const;
 
 function App() {
   // State management
@@ -22,6 +40,7 @@ function App() {
   const [selectedPattern, setSelectedPattern] = useState<PatternType>('resolume');
   const [stylePreset, setStylePreset] = useState<StylePreset>('modern');
   const [sliceColors, setSliceColors] = useState<Map<string, string>>(new Map());
+  const [isLoading, setIsLoading] = useState(false);
   const [branding, setBranding] = useState<BrandingConfig>({
     name: '',
     showCentralBranding: false,
@@ -39,36 +58,16 @@ function App() {
     stylePreset: 'modern',
   });
   const [compositionCanvas, setCompositionCanvas] = useState<HTMLCanvasElement | null>(null);
-  
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
-
-  // Pattern definitions
-  const patterns = [
-    { id: 'complete-pro', name: 'Complete Pro', icon: '🎯', description: 'Tous éléments combinés - Portfolio quality' },
-    { id: 'minimal-geometric', name: 'Minimal Geometric', icon: '⭕', description: 'Design épuré style Apple/Dieter Rams' },
-    { id: 'gradient-paradise', name: 'Gradient Paradise', icon: '🌈', description: 'Multi-gradients vibrants Behance 2025' },
-    { id: 'glassmorphic', name: 'Glassmorphic', icon: '💎', description: 'Glass effect moderne iOS-style' },
-    { id: 'retro-future', name: 'Retro Future', icon: '⚡', description: 'CRT + Cyberpunk + Synthwave' },
-    { id: 'neo-brutalism', name: 'Neo-Brutalism', icon: '🎪', description: 'Bold colors + hard shadows' },
-    { id: 'resolume', name: 'Resolume Classic', icon: '🎬', description: 'Pattern classique Resolume' },
-    { id: 'pixel-grid', name: 'Pixel Grid', icon: '#', description: 'LED panel numbering' },
-  ] as const;
-
-  // Style presets
-  const stylePresets = [
-    { id: 'modern', name: 'Modern', colors: { bg: '#1a1a1a', grid: '#00ff00', text: '#ffffff' } },
-    { id: 'retro-crt', name: 'Retro CRT', colors: { bg: '#000000', grid: '#00ff00', text: '#00ff00' } },
-    { id: 'bios', name: 'BIOS', colors: { bg: '#0000AA', grid: '#AAAAAA', text: '#FFFFFF' } },
-    { id: 'minitel', name: 'Minitel', colors: { bg: '#000000', grid: '#00FF00', text: '#00FF00' } },
-    { id: 'broadcast', name: 'Broadcast', colors: { bg: '#000000', grid: '#FFFFFF', text: '#FFFF00' } },
-  ] as const;
 
   // Handle XML file upload
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    setIsLoading(true);
     const reader = new FileReader();
     reader.onload = (e) => {
       const xmlContent = e.target?.result as string;
@@ -77,11 +76,11 @@ function App() {
 
       if (setup) {
         setResolumeSetup(setup);
-        // Generate random colors for each slice
         generateSliceColors(setup.slices);
       } else {
-        alert('Erreur lors du parsing du XML Resolume');
+        alert('Error parsing Resolume XML. Check console for details.');
       }
+      setIsLoading(false);
     };
     reader.readAsText(file);
   };
@@ -92,8 +91,6 @@ function App() {
       const setup = resolumeParser.parse(rawXML, viewMode);
       if (setup) {
         setResolumeSetup(setup);
-        // Preserve existing colors when switching modes
-        // Only generate new colors if we don't have them yet
         if (sliceColors.size === 0) {
           generateSliceColors(setup.slices);
         }
@@ -118,35 +115,35 @@ function App() {
   };
 
   // Generate random colors for slices
-  const generateSliceColors = (slices: SliceData[]) => {
+  const generateSliceColors = (slices: any[]) => {
     const palette = COLOR_PALETTES.vibrant;
     const newColors = new Map<string, string>();
-    
+
     slices.forEach((slice, index) => {
       newColors.set(slice.id, palette[index % palette.length]);
     });
-    
+
     setSliceColors(newColors);
   };
 
   // Apply color palette
   const applyColorPalette = (paletteName: keyof typeof COLOR_PALETTES) => {
     if (!resolumeSetup) return;
-    
+
     const palette = COLOR_PALETTES[paletteName];
     const newColors = new Map<string, string>();
-    
+
     resolumeSetup.slices.forEach((slice, index) => {
       newColors.set(slice.id, palette[index % palette.length]);
     });
-    
+
     setSliceColors(newColors);
   };
 
   // Apply style preset
   const applyStylePreset = (preset: StylePreset) => {
     setStylePreset(preset);
-    const presetConfig = stylePresets.find(p => p.id === preset);
+    const presetConfig = STYLE_PRESETS.find(p => p.id === preset);
     if (presetConfig) {
       setPatternConfig({
         ...patternConfig,
@@ -201,315 +198,330 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-900 to-gray-800">
       {/* Header */}
-      <div className="bg-gray-800 border-b border-gray-700">
-        <div className="flex items-center justify-between p-6">
-          <div>
-            <h1 className="text-3xl font-bold text-white">
-              🎬 Resolume Test Pattern Generator
-            </h1>
-            <p className="text-sm text-gray-400 mt-1">Professional test patterns for Resolume Arena</p>
+      <header className="bg-gray-900/80 backdrop-blur-md border-b border-gray-700/50 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-6 py-6">
+          <div className="flex items-center justify-between">
+            <div className="animate-fade-in">
+              <h1 className="text-4xl font-bold gradient-text mb-2">
+                Resolume Test Pattern Generator
+              </h1>
+              <p className="text-gray-400 text-sm">Professional test patterns for Resolume Arena</p>
+            </div>
+            {resolumeSetup && (
+              <div className="flex items-center gap-4 text-sm text-gray-400 animate-slide-up">
+                <div className="flex items-center gap-2">
+                  <Layers size={16} className="text-cyan-400" />
+                  <span>{resolumeSetup.slices.length} slices</span>
+                </div>
+                <div className="text-gray-600">|</div>
+                <div>{resolumeSetup.compositionSize.width}×{resolumeSetup.compositionSize.height}</div>
+              </div>
+            )}
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-6 py-8">
+        {/* Upload Section */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8 animate-fade-in">
+          {/* XML Upload Card */}
+          <div className="card">
+            <div className="card-header">
+              <FileText size={24} className="text-green-400" />
+              Import XML
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xml"
+              onChange={handleFileUpload}
+              className="hidden"
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isLoading}
+              className="w-full btn btn-success flex items-center justify-center gap-2 py-4"
+            >
+              {isLoading ? (
+                <>
+                  <div className="spinner w-5 h-5" />
+                  <span>Loading...</span>
+                </>
+              ) : (
+                <>
+                  <Upload size={20} />
+                  <span>Import Resolume XML</span>
+                </>
+              )}
+            </button>
+
+            {resolumeSetup && (
+              <div className="mt-4 space-y-3 animate-slide-up">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-400">Status:</span>
+                  <span className="text-green-400 font-medium">✓ Loaded successfully</span>
+                </div>
+
+                <div className="section-header">View Mode</div>
+                <div className="toggle-group w-full justify-center">
+                  <button
+                    onClick={() => setViewMode('output')}
+                    className={`toggle-btn flex-1 ${viewMode === 'output' ? 'active' : ''}`}
+                  >
+                    Advanced Output
+                  </button>
+                  <button
+                    onClick={() => setViewMode('input')}
+                    className={`toggle-btn flex-1 ${viewMode === 'input' ? 'active' : ''}`}
+                  >
+                    Advanced Input
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Logo Upload Card */}
+          <div className="card">
+            <div className="card-header">
+              <ImageIcon size={24} className="text-purple-400" />
+              Branding
+            </div>
+            <input
+              ref={logoInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleLogoUpload}
+              className="hidden"
+            />
+            <button
+              onClick={() => logoInputRef.current?.click()}
+              className="w-full btn btn-purple flex items-center justify-center gap-2 py-4"
+            >
+              <ImageIcon size={20} />
+              <span>Upload Logo</span>
+            </button>
+
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="section-header">
+                  <Type size={16} />
+                  Branding Name
+                </label>
+                <input
+                  type="text"
+                  value={branding.name}
+                  onChange={(e) => setBranding({ ...branding, name: e.target.value })}
+                  placeholder="Your name or company..."
+                  className="input"
+                />
+              </div>
+              <label className="flex items-center gap-2 text-gray-300 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={branding.showCentralBranding}
+                  onChange={(e) => setBranding({ ...branding, showCentralBranding: e.target.checked })}
+                  className="w-4 h-4 rounded border-gray-600 text-cyan-500 focus:ring-cyan-500"
+                />
+                Show logo on composition
+              </label>
+            </div>
           </div>
         </div>
 
-        <div className="p-6 bg-gray-800">
-          {/* Upload Section */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-            <div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".xml"
-                onChange={handleFileUpload}
-                className="hidden"
-              />
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition w-full justify-center"
-              >
-                <Upload size={20} />
-                Import Resolume XML
-              </button>
-              {resolumeSetup && (
-                <div>
-                  <p className="mt-2 text-sm text-gray-300">
-                    ✓ {resolumeSetup.slices.length} slices | {resolumeSetup.compositionSize.width}×{resolumeSetup.compositionSize.height}
-                  </p>
-                  <div className="mt-3 flex items-center gap-2">
-                    <Layers size={16} className="text-cyan-400" />
-                    <span className="text-xs text-gray-400">View Mode:</span>
-                    <div className="flex gap-1">
-                      <button
-                        onClick={() => setViewMode('output')}
-                        className={`px-3 py-1 text-xs rounded transition ${
-                          viewMode === 'output'
-                            ? 'bg-cyan-500 text-white font-bold'
-                            : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                        }`}
-                      >
-                        Advanced Output
-                      </button>
-                      <button
-                        onClick={() => setViewMode('input')}
-                        className={`px-3 py-1 text-xs rounded transition ${
-                          viewMode === 'input'
-                            ? 'bg-cyan-500 text-white font-bold'
-                            : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                        }`}
-                      >
-                        Advanced Input
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-            
-            <div>
-              <input
-                ref={logoInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleLogoUpload}
-                className="hidden"
-              />
-              <button
-                onClick={() => logoInputRef.current?.click()}
-                className="flex items-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition w-full justify-center"
-              >
-                <ImageIcon size={20} />
-                Upload Logo
-              </button>
-              {branding.logo && (
-                <p className="mt-2 text-sm text-gray-300">
-                  ✓ Logo loaded
-                </p>
-              )}
-            </div>
-          </div>
-
-          {resolumeSetup && (
-            <>
-              {/* Branding Section */}
-              <div className="mb-6 p-4 bg-gray-700 rounded-lg">
-                <h2 className="text-xl font-bold text-white mb-3 flex items-center gap-2">
-                  <Type size={24} />
-                  Branding
-                </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">
-                      Nom / Branding
-                    </label>
-                    <input
-                      type="text"
-                      value={branding.name}
-                      onChange={(e) => setBranding({ ...branding, name: e.target.value })}
-                      placeholder="Enter your name, company, or branding..."
-                      className="w-full px-3 py-2 bg-gray-600 text-white rounded"
-                    />
-                  </div>
-                  <div className="flex items-end">
-                    <label className="flex items-center gap-2 text-gray-300">
-                      <input
-                        type="checkbox"
-                        checked={branding.showCentralBranding}
-                        onChange={(e) => setBranding({ ...branding, showCentralBranding: e.target.checked })}
-                      />
-                      Afficher logo central
-                    </label>
-                  </div>
-                </div>
+        {resolumeSetup && (
+          <div className="space-y-6 animate-scale-in">
+            {/* Pattern Selection */}
+            <div className="card">
+              <div className="card-header">
+                <Grid3x3 size={24} className="text-cyan-400" />
+                Pattern Selection
               </div>
-
-              {/* Pattern Selection */}
-              <div className="mb-6">
-                <h2 className="text-xl font-bold text-white mb-3 flex items-center gap-2">
-                  <Grid3x3 size={24} />
-                  Pattern & Style
-                </h2>
-                
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                  {/* Pattern Type */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Type de Pattern</label>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                      {patterns.map((pattern) => (
-                        <button
-                          key={pattern.id}
-                          onClick={() => setSelectedPattern(pattern.id as PatternType)}
-                          className={`p-3 rounded-lg border-2 transition-all ${
-                            selectedPattern === pattern.id
-                              ? 'border-cyan-400 bg-cyan-400/10 shadow-lg shadow-cyan-400/20'
-                              : 'border-gray-600 bg-gray-700/50 hover:border-gray-500 hover:bg-gray-700'
-                          }`}
-                          title={pattern.description}
-                        >
-                          <div className="text-3xl mb-1">{pattern.icon}</div>
-                          <div className="text-xs font-medium text-white">{pattern.name}</div>
-                        </button>
-                      ))}
-                    </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
+                {PATTERNS.map((pattern) => (
+                  <div
+                    key={pattern.id}
+                    onClick={() => setSelectedPattern(pattern.id as PatternType)}
+                    className={`pattern-card border-gray-600 ${selectedPattern === pattern.id ? 'active' : ''}`}
+                    title={pattern.description}
+                  >
+                    <div className="text-3xl mb-2">{pattern.icon}</div>
+                    <div className="text-xs text-gray-300 font-medium">{pattern.name}</div>
                   </div>
+                ))}
+              </div>
+            </div>
 
-                  {/* Style Preset */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Style Rétro</label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {stylePresets.map((preset) => (
-                        <button
-                          key={preset.id}
-                          onClick={() => applyStylePreset(preset.id as StylePreset)}
-                          className={`px-3 py-2 rounded text-sm transition ${
-                            stylePreset === preset.id
-                              ? 'bg-blue-600 text-white font-bold'
-                              : 'bg-gray-700 hover:bg-gray-600 text-white'
-                          }`}
-                        >
-                          {preset.name}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+            {/* Style & Colors */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Style Presets */}
+              <div className="card">
+                <div className="card-header">
+                  <Palette size={24} className="text-pink-400" />
+                  Style Presets
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  {STYLE_PRESETS.map((preset) => (
+                    <button
+                      key={preset.id}
+                      onClick={() => applyStylePreset(preset.id as StylePreset)}
+                      className={`btn ${stylePreset === preset.id ? 'btn-primary' : 'btn-secondary'}`}
+                    >
+                      {preset.name}
+                    </button>
+                  ))}
                 </div>
               </div>
 
               {/* Color Palettes */}
-              <div className="mb-6">
-                <h2 className="text-xl font-bold text-white mb-3 flex items-center gap-2">
-                  <Palette size={24} />
-                  Palettes de Couleurs
-                </h2>
-                <div className="flex gap-2 flex-wrap">
+              <div className="card">
+                <div className="card-header">
+                  <Palette size={24} className="text-yellow-400" />
+                  Color Palettes
+                </div>
+                <div className="flex flex-wrap gap-2">
                   {Object.keys(COLOR_PALETTES).map((paletteName) => (
                     <button
                       key={paletteName}
                       onClick={() => applyColorPalette(paletteName as keyof typeof COLOR_PALETTES)}
-                      className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded capitalize transition"
+                      className="btn btn-secondary capitalize"
                     >
                       {paletteName}
                     </button>
                   ))}
                 </div>
               </div>
+            </div>
 
-              {/* Slice Colors */}
-              <div className="mb-6">
-                <h2 className="text-xl font-bold text-white mb-3">Couleurs par Slice</h2>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {resolumeSetup.slices.map((slice) => (
-                    <div key={slice.id} className="flex items-center gap-2">
-                      <input
-                        type="color"
-                        value={sliceColors.get(slice.id) || '#000000'}
-                        onChange={(e) => changeSliceColor(slice.id, e.target.value)}
-                        className="w-12 h-12 rounded cursor-pointer"
-                      />
-                      <div>
-                        <div className="text-white text-sm font-medium">{slice.name}</div>
-                        <div className="text-gray-400 text-xs">{slice.width}×{slice.height}</div>
-                      </div>
+            {/* Advanced Settings */}
+            <div className="card">
+              <div className="card-header">
+                <Settings size={24} className="text-orange-400" />
+                Advanced Settings
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="section-header">Grid Color</label>
+                  <input
+                    type="color"
+                    value={patternConfig.gridColor}
+                    onChange={(e) => setPatternConfig({ ...patternConfig, gridColor: e.target.value })}
+                    className="w-full h-12 rounded-lg cursor-pointer border border-gray-600"
+                  />
+                </div>
+                <div>
+                  <label className="section-header">Text Color</label>
+                  <input
+                    type="color"
+                    value={patternConfig.textColor}
+                    onChange={(e) => setPatternConfig({ ...patternConfig, textColor: e.target.value })}
+                    className="w-full h-12 rounded-lg cursor-pointer border border-gray-600"
+                  />
+                </div>
+                <div>
+                  <label className="section-header">Grid Size (px)</label>
+                  <input
+                    type="number"
+                    min="10"
+                    max="200"
+                    value={patternConfig.gridSize}
+                    onChange={(e) => setPatternConfig({ ...patternConfig, gridSize: parseInt(e.target.value) })}
+                    className="input"
+                  />
+                </div>
+              </div>
+              <div className="mt-4 flex gap-6">
+                <label className="flex items-center gap-2 text-gray-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={patternConfig.showText}
+                    onChange={(e) => setPatternConfig({ ...patternConfig, showText: e.target.checked })}
+                    className="w-4 h-4 rounded border-gray-600 text-cyan-500"
+                  />
+                  Show text labels
+                </label>
+                <label className="flex items-center gap-2 text-gray-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={patternConfig.showDiagonal}
+                    onChange={(e) => setPatternConfig({ ...patternConfig, showDiagonal: e.target.checked })}
+                    className="w-4 h-4 rounded border-gray-600 text-cyan-500"
+                  />
+                  Show diagonals
+                </label>
+              </div>
+            </div>
+
+            {/* Slice Colors */}
+            <div className="card">
+              <div className="card-header">
+                <Palette size={24} className="text-purple-400" />
+                Slice Colors
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                {resolumeSetup.slices.map((slice) => (
+                  <div key={slice.id} className="flex items-center gap-3">
+                    <input
+                      type="color"
+                      value={sliceColors.get(slice.id) || '#000000'}
+                      onChange={(e) => changeSliceColor(slice.id, e.target.value)}
+                      className="w-12 h-12 rounded-lg cursor-pointer border border-gray-600"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-white text-sm font-medium truncate">{slice.name}</div>
+                      <div className="text-gray-400 text-xs">{slice.width}×{slice.height}</div>
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ))}
               </div>
+            </div>
 
-              {/* Configuration Panel */}
-              <div className="mb-6 p-4 bg-gray-700 rounded-lg">
-                <h2 className="text-xl font-bold text-white mb-3 flex items-center gap-2">
-                  <Settings size={24} />
-                  Configuration Avancée
-                </h2>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">
-                      Couleur de grille
-                    </label>
-                    <input
-                      type="color"
-                      value={patternConfig.gridColor}
-                      onChange={(e) => setPatternConfig({ ...patternConfig, gridColor: e.target.value })}
-                      className="w-full h-10 rounded cursor-pointer"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">
-                      Couleur du texte
-                    </label>
-                    <input
-                      type="color"
-                      value={patternConfig.textColor}
-                      onChange={(e) => setPatternConfig({ ...patternConfig, textColor: e.target.value })}
-                      className="w-full h-10 rounded cursor-pointer"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">
-                      Taille de grille (px)
-                    </label>
-                    <input
-                      type="number"
-                      min="10"
-                      max="200"
-                      value={patternConfig.gridSize}
-                      onChange={(e) => setPatternConfig({ ...patternConfig, gridSize: parseInt(e.target.value) })}
-                      className="w-full px-3 py-2 bg-gray-600 text-white rounded"
-                    />
-                  </div>
-                </div>
-                <div className="mt-4 flex gap-4">
-                  <label className="flex items-center gap-2 text-gray-300">
-                    <input
-                      type="checkbox"
-                      checked={patternConfig.showText}
-                      onChange={(e) => setPatternConfig({ ...patternConfig, showText: e.target.checked })}
-                    />
-                    Afficher le texte
-                  </label>
-                  <label className="flex items-center gap-2 text-gray-300">
-                    <input
-                      type="checkbox"
-                      checked={patternConfig.showDiagonal}
-                      onChange={(e) => setPatternConfig({ ...patternConfig, showDiagonal: e.target.checked })}
-                    />
-                    Diagonales globales
-                  </label>
-                </div>
-              </div>
+            {/* Export & Preview */}
+            <div className="card">
+              <button
+                onClick={exportComposition}
+                className="w-full btn btn-success flex items-center justify-center gap-3 py-6 text-lg"
+              >
+                <Download size={24} />
+                <span>
+                  Export {viewMode === 'output' ? 'Output' : 'Input'}
+                  ({resolumeSetup.compositionSize.width}×{resolumeSetup.compositionSize.height})
+                </span>
+              </button>
+            </div>
 
-              {/* Export Button */}
-              <div className="mb-6">
-                <button
-                  onClick={exportComposition}
-                  className="flex items-center gap-2 px-8 py-4 bg-green-600 text-white rounded-lg hover:bg-green-700 text-lg font-bold transition w-full justify-center"
-                >
-                  <Download size={24} />
-                  Export Composition - {viewMode === 'output' ? 'Advanced Output' : 'Advanced Input'} ({resolumeSetup.compositionSize.width}×{resolumeSetup.compositionSize.height})
-                </button>
+            {/* Preview */}
+            <div className="card">
+              <div className="card-header">
+                <Eye size={24} className="text-blue-400" />
+                Composition Preview
               </div>
+              {compositionCanvas && (
+                <div className="canvas-preview">
+                  <img
+                    src={compositionCanvas.toDataURL()}
+                    alt="Test Pattern Composition"
+                    className="w-full h-auto"
+                    style={{ imageRendering: 'crisp-edges' }}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
-              {/* Preview */}
-              <div>
-                <h2 className="text-xl font-bold text-white mb-3 flex items-center gap-2">
-                  <Eye size={24} />
-                  Composition Preview
-                </h2>
-                {compositionCanvas && (
-                  <div className="canvas-preview bg-black rounded overflow-hidden max-w-full">
-                    <img
-                      src={compositionCanvas.toDataURL()}
-                      alt="Test Pattern Composition"
-                      className="w-full h-auto"
-                      style={{ imageRendering: 'crisp-edges' }}
-                    />
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-        </div>
-      </div>
+        {/* Empty State */}
+        {!resolumeSetup && !isLoading && (
+          <div className="card text-center py-16 animate-fade-in">
+            <div className="text-6xl mb-4">🎬</div>
+            <h3 className="text-2xl font-bold text-white mb-2">Ready to Start</h3>
+            <p className="text-gray-400">Import your Resolume XML file to begin creating test patterns</p>
+          </div>
+        )}
+      </main>
     </div>
   );
 }
