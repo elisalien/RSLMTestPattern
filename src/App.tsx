@@ -185,17 +185,24 @@ function App() {
     const config = { ...patternConfig, type: selectedPattern };
     const outputDims = getOutputDimensions();
 
-    // Calculate scale factors
+    // Calculate uniform scale factor to maintain aspect ratio (fit to screen)
     const scaleX = outputDims.width / resolumeSetup.compositionSize.width;
     const scaleY = outputDims.height / resolumeSetup.compositionSize.height;
+    const scale = Math.min(scaleX, scaleY); // Use minimum to ensure everything fits
 
-    // Scale slices for output resolution
+    // Calculate centered offsets for letterboxing/pillarboxing
+    const scaledWidth = resolumeSetup.compositionSize.width * scale;
+    const scaledHeight = resolumeSetup.compositionSize.height * scale;
+    const offsetX = Math.round((outputDims.width - scaledWidth) / 2);
+    const offsetY = Math.round((outputDims.height - scaledHeight) / 2);
+
+    // Scale slices uniformly and center them
     const scaledSlices = resolumeSetup.slices.map(slice => ({
       ...slice,
-      x: Math.round(slice.x * scaleX),
-      y: Math.round(slice.y * scaleY),
-      width: Math.round(slice.width * scaleX),
-      height: Math.round(slice.height * scaleY),
+      x: Math.round(slice.x * scale) + offsetX,
+      y: Math.round(slice.y * scale) + offsetY,
+      width: Math.round(slice.width * scale),
+      height: Math.round(slice.height * scale),
     }));
 
     const canvas = patternGenerator.generateComposition(
