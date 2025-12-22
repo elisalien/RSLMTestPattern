@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
-import { Upload, Download, Settings, Eye, Grid3x3, Palette, Image as ImageIcon, Type, Layers, FileText } from 'lucide-react';
+import { Upload, Download, Settings, Eye, Grid3x3, Palette, Image as ImageIcon, Type, Layers, FileText, Monitor } from 'lucide-react';
 import { resolumeParser } from './utils/resolume-parser';
 import { patternGenerator } from './utils/pattern-generator';
-import { ResolumeSetup, PatternType, PatternConfig, StylePreset, BrandingConfig, ViewMode } from './types';
+import { ResolumeSetup, PatternType, PatternConfig, StylePreset, BrandingConfig, ViewMode, OutputResolution } from './types';
 
 // Color palettes for auto-generation
 const COLOR_PALETTES = {
@@ -32,6 +32,14 @@ const STYLE_PRESETS = [
   { id: 'broadcast', name: 'Broadcast', colors: { bg: '#000000', grid: '#FFFFFF', text: '#FFFF00' } },
 ] as const;
 
+const OUTPUT_RESOLUTIONS: OutputResolution[] = [
+  { id: 'original', name: 'Original (Composition)', width: 0, height: 0 }, // Will be set dynamically
+  { id: 'hd', name: 'HD 1280×720', width: 1280, height: 720 },
+  { id: 'fhd', name: 'Full HD 1920×1080', width: 1920, height: 1080 },
+  { id: '2k', name: '2K 2560×1440', width: 2560, height: 1440 },
+  { id: '4k', name: '4K UHD 3840×2160', width: 3840, height: 2160 },
+];
+
 function App() {
   // State management
   const [resolumeSetup, setResolumeSetup] = useState<ResolumeSetup | null>(null);
@@ -41,6 +49,7 @@ function App() {
   const [stylePreset, setStylePreset] = useState<StylePreset>('modern');
   const [sliceColors, setSliceColors] = useState<Map<string, string>>(new Map());
   const [isLoading, setIsLoading] = useState(false);
+  const [outputResolution, setOutputResolution] = useState<OutputResolution>(OUTPUT_RESOLUTIONS[0]);
   const [branding, setBranding] = useState<BrandingConfig>({
     name: '',
     showCentralBranding: false,
@@ -61,6 +70,20 @@ function App() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
+
+  // Get actual output dimensions based on selected resolution
+  const getOutputDimensions = (): { width: number; height: number } => {
+    if (!resolumeSetup) return { width: 1920, height: 1080 };
+
+    if (outputResolution.id === 'original') {
+      return resolumeSetup.compositionSize;
+    }
+
+    return {
+      width: outputResolution.width,
+      height: outputResolution.height,
+    };
+  };
 
   // Handle XML file upload
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -160,10 +183,25 @@ function App() {
     if (!resolumeSetup) return;
 
     const config = { ...patternConfig, type: selectedPattern };
+    const outputDims = getOutputDimensions();
+
+    // Calculate scale factors
+    const scaleX = outputDims.width / resolumeSetup.compositionSize.width;
+    const scaleY = outputDims.height / resolumeSetup.compositionSize.height;
+
+    // Scale slices for output resolution
+    const scaledSlices = resolumeSetup.slices.map(slice => ({
+      ...slice,
+      x: Math.round(slice.x * scaleX),
+      y: Math.round(slice.y * scaleY),
+      width: Math.round(slice.width * scaleX),
+      height: Math.round(slice.height * scaleY),
+    }));
+
     const canvas = patternGenerator.generateComposition(
-      resolumeSetup.slices,
-      resolumeSetup.compositionSize.width,
-      resolumeSetup.compositionSize.height,
+      scaledSlices,
+      outputDims.width,
+      outputDims.height,
       config,
       sliceColors,
       branding.showCentralBranding ? branding.logo : undefined,
@@ -171,7 +209,7 @@ function App() {
     );
 
     setCompositionCanvas(canvas);
-  }, [resolumeSetup, selectedPattern, patternConfig, sliceColors, branding]);
+  }, [resolumeSetup, selectedPattern, patternConfig, sliceColors, branding, outputResolution]);
 
   // Export composition as PNG
   const exportComposition = () => {
@@ -183,7 +221,8 @@ function App() {
       const a = document.createElement('a');
       a.href = url;
       const modeLabel = viewMode === 'output' ? 'Output' : 'Input';
-      const filename = `${branding.name || resolumeSetup.name}_${selectedPattern}_${modeLabel}_${resolumeSetup.compositionSize.width}x${resolumeSetup.compositionSize.height}.png`;
+      const outputDims = getOutputDimensions();
+      const filename = `${branding.name || resolumeSetup.name}_${selectedPattern}_${modeLabel}_${outputDims.width}x${outputDims.height}.png`;
       a.download = filename;
       a.click();
       URL.revokeObjectURL(url);
@@ -216,7 +255,10 @@ function App() {
                   <span>{resolumeSetup.slices.length} slices</span>
                 </div>
                 <div className="text-gray-600">|</div>
-                <div>{resolumeSetup.compositionSize.width}×{resolumeSetup.compositionSize.height}</div>
+                <div className="flex items-center gap-2">
+                  <Monitor size={16} className="text-purple-400" />
+                  <span>{getOutputDimensions().width}×{getOutputDimensions().height}</span>
+                </div>
               </div>
             )}
           </div>
@@ -279,6 +321,33 @@ function App() {
                   >
                     Advanced Input
                   </button>
+                </div>
+
+                <div className="section-header flex items-center gap-2">
+                  <Monitor size={16} />
+                  Output Resolution
+                </div>
+                <select
+                  value={outputResolution.id}
+                  onChange={(e) => {
+                    const selected = OUTPUT_RESOLUTIONS.find(r => r.id === e.target.value);
+                    if (selected) setOutputResolution(selected);
+                  }}
+                  className="input"
+                >
+                  <option value="original">
+                    Original ({resolumeSetup.compositionSize.width}×{resolumeSetup.compositionSize.height})
+                  </option>
+                  {OUTPUT_RESOLUTIONS.slice(1).map((res) => (
+                    <option key={res.id} value={res.id}>
+                      {res.name}
+                    </option>
+                  ))}
+                </select>
+                <div className="text-xs text-gray-400 text-center">
+                  {outputResolution.id === 'original'
+                    ? 'Using original composition size'
+                    : `Scaled to ${getOutputDimensions().width}×${getOutputDimensions().height}`}
                 </div>
               </div>
             )}
@@ -488,7 +557,7 @@ function App() {
                 <Download size={24} />
                 <span>
                   Export {viewMode === 'output' ? 'Output' : 'Input'}
-                  ({resolumeSetup.compositionSize.width}×{resolumeSetup.compositionSize.height})
+                  ({getOutputDimensions().width}×{getOutputDimensions().height})
                 </span>
               </button>
             </div>

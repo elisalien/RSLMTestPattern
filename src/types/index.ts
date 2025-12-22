@@ -65,6 +65,13 @@ export interface ExportOptions {
   namingPattern: string;
 }
 
+export interface OutputResolution {
+  id: string;
+  name: string;
+  width: number;
+  height: number;
+}
+
 export interface BrandingConfig {
   name: string;
   logo?: HTMLImageElement;
