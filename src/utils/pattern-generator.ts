@@ -99,10 +99,23 @@ export class TestPatternGenerator {
     // Restore context
     this.ctx.restore();
 
-    // Draw slice border
-    this.ctx.strokeStyle = '#ffffff';
-    this.ctx.lineWidth = 3;
+    // Enhanced slice border with double-line effect
+    this.ctx.save();
+
+    // Outer border with glow
+    this.ctx.shadowColor = '#FFFFFF';
+    this.ctx.shadowBlur = 10;
+    this.ctx.strokeStyle = '#FFFFFF';
+    this.ctx.lineWidth = 4;
     this.ctx.strokeRect(x, y, width, height);
+
+    // Inner border (accent)
+    this.ctx.shadowBlur = 0;
+    this.ctx.strokeStyle = '#00FFFF';
+    this.ctx.lineWidth = 2;
+    this.ctx.strokeRect(x + 3, y + 3, width - 6, height - 6);
+
+    this.ctx.restore();
 
     // Draw slice label
     if (config.showText) {
@@ -111,7 +124,7 @@ export class TestPatternGenerator {
   }
 
   /**
-   * Draw pixel grid pattern within a slice
+   * Draw pixel grid pattern within a slice (ENHANCED)
    */
   private drawPixelGridInSlice(slice: SliceData, config: PatternConfig) {
     const { x, y, width, height } = slice;
@@ -120,17 +133,27 @@ export class TestPatternGenerator {
     const cols = Math.ceil(width / cellSize);
     const rows = Math.ceil(height / cellSize);
 
-    // Generate color palette for cells (6 vibrant colors)
+    // Enhanced color palette with better contrast and aesthetics
     const cellColors = [
-      '#8B008B', // Dark Magenta
-      '#006666', // Teal
-      '#6B8E23', // Olive
-      '#8B0000', // Dark Red
-      '#00008B', // Dark Blue
-      '#006400', // Dark Green
+      '#2E1A47', // Deep Purple
+      '#1A3A3A', // Deep Teal
+      '#3A3A1A', // Olive Green
+      '#3A1A1A', // Dark Crimson
+      '#1A1A3A', // Navy Blue
+      '#1A3A1A', // Forest Green
     ];
 
-    // Fill cells with alternating colors and draw grid
+    // Gradient overlay colors for depth
+    const gradientOverlays = [
+      'rgba(138, 43, 226, 0.15)',   // Purple overlay
+      'rgba(0, 206, 209, 0.15)',    // Cyan overlay
+      'rgba(154, 205, 50, 0.15)',   // Yellow-green overlay
+      'rgba(220, 20, 60, 0.15)',    // Crimson overlay
+      'rgba(65, 105, 225, 0.15)',   // Royal blue overlay
+      'rgba(46, 139, 87, 0.15)',    // Sea green overlay
+    ];
+
+    // Fill cells with subtle gradient effect
     for (let row = 0; row < rows; row++) {
       for (let col = 0; col < cols; col++) {
         const cellX = x + col * cellSize;
@@ -138,16 +161,26 @@ export class TestPatternGenerator {
         const cellWidth = Math.min(cellSize, width - col * cellSize);
         const cellHeight = Math.min(cellSize, height - row * cellSize);
 
-        // Alternate colors in checkerboard pattern
+        // Base color
         const colorIndex = (row * cols + col) % cellColors.length;
         this.ctx.fillStyle = cellColors[colorIndex];
+        this.ctx.fillRect(cellX, cellY, cellWidth, cellHeight);
+
+        // Add subtle gradient overlay for depth
+        const gradient = this.ctx.createLinearGradient(cellX, cellY, cellX + cellWidth, cellY + cellHeight);
+        gradient.addColorStop(0, gradientOverlays[colorIndex]);
+        gradient.addColorStop(1, 'rgba(0, 0, 0, 0.2)');
+        this.ctx.fillStyle = gradient;
         this.ctx.fillRect(cellX, cellY, cellWidth, cellHeight);
       }
     }
 
-    // Draw grid lines on top
+    // Enhanced grid lines with glow effect
+    this.ctx.save();
+    this.ctx.shadowColor = config.gridColor;
+    this.ctx.shadowBlur = 8;
     this.ctx.strokeStyle = config.gridColor;
-    this.ctx.lineWidth = 2;
+    this.ctx.lineWidth = 2.5;
 
     // Vertical lines
     for (let gridX = 0; gridX <= width; gridX += cellSize) {
@@ -164,38 +197,64 @@ export class TestPatternGenerator {
       this.ctx.lineTo(x + width, y + gridY);
       this.ctx.stroke();
     }
+    this.ctx.restore();
 
-    // Draw cell numbers
-    this.ctx.fillStyle = '#FFFFFF';
-    this.ctx.font = `bold ${Math.min(cellSize / 5, 18)}px Arial`;
+    // Draw cell numbers with enhanced styling
+    const fontSize = Math.min(cellSize / 4.5, 20);
+    this.ctx.font = `bold ${fontSize}px 'Courier New', monospace`;
     this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'middle';
-    this.ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
-    this.ctx.shadowBlur = 4;
 
     for (let row = 0; row < rows; row++) {
       for (let col = 0; col < cols; col++) {
         const cellCenterX = x + col * cellSize + cellSize / 2;
         const cellCenterY = y + row * cellSize + cellSize / 2;
+
+        // Draw number with glow effect
+        this.ctx.save();
+        this.ctx.shadowColor = '#FFFFFF';
+        this.ctx.shadowBlur = 10;
+        this.ctx.fillStyle = '#FFFFFF';
         this.ctx.fillText(`${col + 1},${row + 1}`, cellCenterX, cellCenterY);
+
+        // Second pass for stronger text
+        this.ctx.shadowBlur = 0;
+        this.ctx.fillStyle = '#FFFFFF';
+        this.ctx.fillText(`${col + 1},${row + 1}`, cellCenterX, cellCenterY);
+        this.ctx.restore();
+
+        // Add small corner markers for precise alignment
+        const markerSize = cellSize * 0.08;
+        this.ctx.fillStyle = '#FF6B6B';
+        this.ctx.fillRect(x + col * cellSize + 2, y + row * cellSize + 2, markerSize, markerSize);
       }
     }
 
-    this.ctx.shadowBlur = 0;
+    // Add LED panel reference dots at intersection points
+    this.ctx.fillStyle = '#00FFFF';
+    for (let gridY = 0; gridY <= height; gridY += cellSize) {
+      for (let gridX = 0; gridX <= width; gridX += cellSize) {
+        this.ctx.beginPath();
+        this.ctx.arc(x + gridX, y + gridY, 3, 0, 2 * Math.PI);
+        this.ctx.fill();
+      }
+    }
   }
 
   /**
-   * Draw crosshatch pattern within a slice
+   * Draw crosshatch pattern within a slice (ENHANCED)
    */
   private drawCrosshatchInSlice(slice: SliceData, config: PatternConfig) {
     const { x, y, width, height } = slice;
     const gridSize = config.gridSize || 50;
 
-    this.ctx.strokeStyle = config.gridColor;
-    this.ctx.lineWidth = 1;
-
-    // Grid lines
+    // Fine grid with varying opacity
     for (let gridX = 0; gridX <= width; gridX += gridSize) {
+      const isMajorLine = gridX % (gridSize * 4) === 0;
+      this.ctx.strokeStyle = config.gridColor;
+      this.ctx.lineWidth = isMajorLine ? 2 : 1;
+      this.ctx.globalAlpha = isMajorLine ? 0.7 : 0.3;
+
       this.ctx.beginPath();
       this.ctx.moveTo(x + gridX, y);
       this.ctx.lineTo(x + gridX, y + height);
@@ -203,47 +262,11 @@ export class TestPatternGenerator {
     }
 
     for (let gridY = 0; gridY <= height; gridY += gridSize) {
-      this.ctx.beginPath();
-      this.ctx.moveTo(x, y + gridY);
-      this.ctx.lineTo(x + width, y + gridY);
-      this.ctx.stroke();
-    }
+      const isMajorLine = gridY % (gridSize * 4) === 0;
+      this.ctx.strokeStyle = config.gridColor;
+      this.ctx.lineWidth = isMajorLine ? 2 : 1;
+      this.ctx.globalAlpha = isMajorLine ? 0.7 : 0.3;
 
-    // Corner circles
-    const circleRadius = Math.min(width, height) * 0.08;
-    this.ctx.lineWidth = 2;
-    
-    [[x + circleRadius, y + circleRadius],
-     [x + width - circleRadius, y + circleRadius],
-     [x + width - circleRadius, y + height - circleRadius],
-     [x + circleRadius, y + height - circleRadius]].forEach(([cx, cy]) => {
-      this.ctx.beginPath();
-      this.ctx.arc(cx, cy, circleRadius, 0, 2 * Math.PI);
-      this.ctx.stroke();
-    });
-  }
-
-  /**
-   * Draw Resolume-style pattern within a slice
-   */
-  private drawResolumeInSlice(slice: SliceData, config: PatternConfig) {
-    const { x, y, width, height } = slice;
-    const gridSize = Math.max(30, Math.min(width, height) / 16);
-
-    this.ctx.strokeStyle = config.gridColor;
-    this.ctx.lineWidth = 1;
-
-    // Grid
-    for (let gridX = 0; gridX <= width; gridX += gridSize) {
-      this.ctx.globalAlpha = (gridX % (gridSize * 4) === 0) ? 0.8 : 0.3;
-      this.ctx.beginPath();
-      this.ctx.moveTo(x + gridX, y);
-      this.ctx.lineTo(x + gridX, y + height);
-      this.ctx.stroke();
-    }
-
-    for (let gridY = 0; gridY <= height; gridY += gridSize) {
-      this.ctx.globalAlpha = (gridY % (gridSize * 4) === 0) ? 0.8 : 0.3;
       this.ctx.beginPath();
       this.ctx.moveTo(x, y + gridY);
       this.ctx.lineTo(x + width, y + gridY);
@@ -251,13 +274,116 @@ export class TestPatternGenerator {
     }
     this.ctx.globalAlpha = 1;
 
-    // Center cross
-    this.ctx.strokeStyle = '#FF0000';
-    this.ctx.lineWidth = 2;
+    // Enhanced corner circles for convergence testing
+    const circleRadius = Math.min(width, height) * 0.08;
+
+    [[x + circleRadius * 1.5, y + circleRadius * 1.5],
+     [x + width - circleRadius * 1.5, y + circleRadius * 1.5],
+     [x + width - circleRadius * 1.5, y + height - circleRadius * 1.5],
+     [x + circleRadius * 1.5, y + height - circleRadius * 1.5]].forEach(([cx, cy]) => {
+      // Outer circle with glow
+      this.ctx.save();
+      this.ctx.shadowColor = '#FF00FF';
+      this.ctx.shadowBlur = 10;
+      this.ctx.strokeStyle = '#FF00FF';
+      this.ctx.lineWidth = 3;
+      this.ctx.beginPath();
+      this.ctx.arc(cx, cy, circleRadius, 0, 2 * Math.PI);
+      this.ctx.stroke();
+
+      // Middle circle
+      this.ctx.shadowBlur = 0;
+      this.ctx.strokeStyle = '#00FFFF';
+      this.ctx.lineWidth = 2;
+      this.ctx.beginPath();
+      this.ctx.arc(cx, cy, circleRadius * 0.6, 0, 2 * Math.PI);
+      this.ctx.stroke();
+
+      // Center crosshair
+      this.ctx.strokeStyle = '#FFFFFF';
+      this.ctx.lineWidth = 1;
+      const crossSize = circleRadius * 0.3;
+      this.ctx.beginPath();
+      this.ctx.moveTo(cx - crossSize, cy);
+      this.ctx.lineTo(cx + crossSize, cy);
+      this.ctx.moveTo(cx, cy - crossSize);
+      this.ctx.lineTo(cx, cy + crossSize);
+      this.ctx.stroke();
+      this.ctx.restore();
+    });
+
+    // Center target for focus
     const centerX = x + width / 2;
     const centerY = y + height / 2;
-    const crossSize = Math.min(width, height) * 0.1;
-    
+    this.ctx.save();
+    this.ctx.shadowColor = '#FFFF00';
+    this.ctx.shadowBlur = 15;
+    this.ctx.strokeStyle = '#FFFF00';
+    this.ctx.lineWidth = 2;
+
+    // Concentric circles
+    for (let i = 1; i <= 3; i++) {
+      this.ctx.beginPath();
+      this.ctx.arc(centerX, centerY, circleRadius * i * 0.4, 0, 2 * Math.PI);
+      this.ctx.stroke();
+    }
+    this.ctx.restore();
+  }
+
+  /**
+   * Draw Resolume-style pattern within a slice (ENHANCED)
+   */
+  private drawResolumeInSlice(slice: SliceData, config: PatternConfig) {
+    const { x, y, width, height } = slice;
+    const gridSize = Math.max(30, Math.min(width, height) / 16);
+
+    // Enhanced grid with better visual hierarchy
+    this.ctx.lineWidth = 1;
+
+    // Main grid lines (bright, every 4th line)
+    for (let gridX = 0; gridX <= width; gridX += gridSize) {
+      if (gridX % (gridSize * 4) === 0) {
+        this.ctx.strokeStyle = config.gridColor;
+        this.ctx.globalAlpha = 0.9;
+        this.ctx.lineWidth = 2;
+      } else {
+        this.ctx.strokeStyle = config.gridColor;
+        this.ctx.globalAlpha = 0.25;
+        this.ctx.lineWidth = 1;
+      }
+      this.ctx.beginPath();
+      this.ctx.moveTo(x + gridX, y);
+      this.ctx.lineTo(x + gridX, y + height);
+      this.ctx.stroke();
+    }
+
+    for (let gridY = 0; gridY <= height; gridY += gridSize) {
+      if (gridY % (gridSize * 4) === 0) {
+        this.ctx.strokeStyle = config.gridColor;
+        this.ctx.globalAlpha = 0.9;
+        this.ctx.lineWidth = 2;
+      } else {
+        this.ctx.strokeStyle = config.gridColor;
+        this.ctx.globalAlpha = 0.25;
+        this.ctx.lineWidth = 1;
+      }
+      this.ctx.beginPath();
+      this.ctx.moveTo(x, y + gridY);
+      this.ctx.lineTo(x + width, y + gridY);
+      this.ctx.stroke();
+    }
+    this.ctx.globalAlpha = 1;
+
+    const centerX = x + width / 2;
+    const centerY = y + height / 2;
+    const crossSize = Math.min(width, height) * 0.12;
+
+    // Center crosshair with glow effect
+    this.ctx.save();
+    this.ctx.shadowColor = '#FF0000';
+    this.ctx.shadowBlur = 15;
+    this.ctx.strokeStyle = '#FF0000';
+    this.ctx.lineWidth = 3;
     this.ctx.beginPath();
     this.ctx.moveTo(centerX - crossSize, centerY);
     this.ctx.lineTo(centerX + crossSize, centerY);
@@ -265,49 +391,207 @@ export class TestPatternGenerator {
     this.ctx.lineTo(centerX, centerY + crossSize);
     this.ctx.stroke();
 
-    // Diagonal
+    // Inner crosshair detail
+    this.ctx.shadowBlur = 0;
+    this.ctx.strokeStyle = '#FFFFFF';
+    this.ctx.lineWidth = 1;
+    const innerCross = crossSize * 0.3;
+    this.ctx.beginPath();
+    this.ctx.moveTo(centerX - innerCross, centerY);
+    this.ctx.lineTo(centerX + innerCross, centerY);
+    this.ctx.moveTo(centerX, centerY - innerCross);
+    this.ctx.lineTo(centerX, centerY + innerCross);
+    this.ctx.stroke();
+    this.ctx.restore();
+
+    // Corner alignment markers (professional broadcast style)
+    const markerSize = Math.min(width, height) * 0.05;
+    const offset = markerSize * 1.5;
+    this.ctx.strokeStyle = '#00FFFF';
+    this.ctx.lineWidth = 2;
+    this.ctx.globalAlpha = 0.8;
+
+    // Top-left
+    this.ctx.beginPath();
+    this.ctx.moveTo(x + offset, y);
+    this.ctx.lineTo(x, y);
+    this.ctx.lineTo(x, y + offset);
+    this.ctx.stroke();
+
+    // Top-right
+    this.ctx.beginPath();
+    this.ctx.moveTo(x + width - offset, y);
+    this.ctx.lineTo(x + width, y);
+    this.ctx.lineTo(x + width, y + offset);
+    this.ctx.stroke();
+
+    // Bottom-right
+    this.ctx.beginPath();
+    this.ctx.moveTo(x + width - offset, y + height);
+    this.ctx.lineTo(x + width, y + height);
+    this.ctx.lineTo(x + width, y + height - offset);
+    this.ctx.stroke();
+
+    // Bottom-left
+    this.ctx.beginPath();
+    this.ctx.moveTo(x + offset, y + height);
+    this.ctx.lineTo(x, y + height);
+    this.ctx.lineTo(x, y + height - offset);
+    this.ctx.stroke();
+
+    this.ctx.globalAlpha = 1;
+
+    // Diagonal lines with gradient effect
     if (config.showDiagonal) {
+      this.ctx.save();
       this.ctx.strokeStyle = '#00FF00';
-      this.ctx.lineWidth = 1;
+      this.ctx.lineWidth = 2;
+      this.ctx.globalAlpha = 0.4;
+      this.ctx.setLineDash([10, 10]);
+
       this.ctx.beginPath();
       this.ctx.moveTo(x, y);
       this.ctx.lineTo(x + width, y + height);
       this.ctx.stroke();
+
+      this.ctx.beginPath();
+      this.ctx.moveTo(x + width, y);
+      this.ctx.lineTo(x, y + height);
+      this.ctx.stroke();
+
+      this.ctx.setLineDash([]);
+      this.ctx.restore();
     }
+
+    // Safe area indicator (action safe / title safe zones)
+    const safeMargin = Math.min(width, height) * 0.05;
+    this.ctx.strokeStyle = '#FFFF00';
+    this.ctx.lineWidth = 1;
+    this.ctx.globalAlpha = 0.3;
+    this.ctx.setLineDash([5, 5]);
+    this.ctx.strokeRect(x + safeMargin, y + safeMargin, width - safeMargin * 2, height - safeMargin * 2);
+    this.ctx.setLineDash([]);
+    this.ctx.globalAlpha = 1;
   }
 
   /**
-   * Draw slice label (name, dimensions, position)
+   * Draw slice label (name, dimensions, position) - ENHANCED
    */
   private drawSliceLabel(slice: SliceData, config: PatternConfig) {
     const { x, y, width, height, name } = slice;
 
     this.ctx.save();
 
-    // Shadow for all text
-    this.ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
-    this.ctx.shadowBlur = 8;
-    this.ctx.shadowOffsetX = 2;
-    this.ctx.shadowOffsetY = 2;
+    // TL position label (top-left corner) with background badge
+    const tlFontSize = Math.max(10, Math.min(width / 35, 14));
+    this.ctx.font = `bold ${tlFontSize}px 'Courier New', monospace`;
+    const tlText = `TL: ${x}, ${y}`;
+    const tlMetrics = this.ctx.measureText(tlText);
+    const tlPadding = 6;
 
-    // TL position label (top-left corner)
-    this.ctx.font = `bold ${Math.max(12, Math.min(width / 30, 16))}px Arial`;
-    this.ctx.fillStyle = '#FFFF00'; // Yellow for TL label
+    // Badge background
+    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    this.ctx.fillRect(
+      x + 8,
+      y + 8,
+      tlMetrics.width + tlPadding * 2,
+      tlFontSize + tlPadding
+    );
+
+    // Badge border
+    this.ctx.strokeStyle = '#00FFFF';
+    this.ctx.lineWidth = 1;
+    this.ctx.strokeRect(
+      x + 8,
+      y + 8,
+      tlMetrics.width + tlPadding * 2,
+      tlFontSize + tlPadding
+    );
+
+    // TL text
+    this.ctx.fillStyle = '#00FFFF';
     this.ctx.textAlign = 'left';
     this.ctx.textBaseline = 'top';
-    this.ctx.fillText(`TL:${x},${y}`, x + 8, y + 8);
+    this.ctx.fillText(tlText, x + 8 + tlPadding, y + 8 + tlPadding / 2);
 
-    // Slice name (center)
-    this.ctx.font = `bold ${Math.max(20, Math.min(width / 12, 32))}px Arial`;
-    this.ctx.fillStyle = '#FFFF00'; // Yellow like in the reference
+    // Slice name (center) with enhanced styling
+    const centerY = y + height / 2;
+    const nameFontSize = Math.max(24, Math.min(width / 10, 48));
+    this.ctx.font = `bold ${nameFontSize}px 'Arial Black', Arial`;
     this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'middle';
-    this.ctx.fillText(name.toUpperCase(), x + width / 2, y + height / 2 - 10);
 
-    // Dimensions below name
-    this.ctx.font = `${Math.max(14, Math.min(width / 20, 18))}px monospace`;
+    // Name with double glow effect
+    this.ctx.save();
+    this.ctx.shadowColor = '#FFFF00';
+    this.ctx.shadowBlur = 20;
+    this.ctx.fillStyle = '#FFFF00';
+    this.ctx.fillText(name.toUpperCase(), x + width / 2, centerY - 20);
+
+    this.ctx.shadowBlur = 5;
     this.ctx.fillStyle = '#FFFFFF';
-    this.ctx.fillText(`${width}×${height}`, x + width / 2, y + height / 2 + 20);
+    this.ctx.fillText(name.toUpperCase(), x + width / 2, centerY - 20);
+    this.ctx.restore();
+
+    // Dimensions below name with icon-style background
+    const dimFontSize = Math.max(14, Math.min(width / 22, 20));
+    this.ctx.font = `bold ${dimFontSize}px 'Courier New', monospace`;
+    const dimText = `${width} × ${height}`;
+    const dimMetrics = this.ctx.measureText(dimText);
+    const dimPadding = 8;
+
+    // Dimension badge background
+    this.ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+    this.ctx.fillRect(
+      x + width / 2 - dimMetrics.width / 2 - dimPadding,
+      centerY + 10,
+      dimMetrics.width + dimPadding * 2,
+      dimFontSize + dimPadding
+    );
+
+    // Dimension text
+    this.ctx.fillStyle = '#FFFFFF';
+    this.ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+    this.ctx.shadowBlur = 4;
+    this.ctx.fillText(dimText, x + width / 2, centerY + 10 + dimFontSize / 2 + dimPadding / 2);
+
+    // Bottom-right corner: Add slice index/number badge
+    const indexFontSize = Math.max(10, Math.min(width / 40, 12));
+    this.ctx.font = `bold ${indexFontSize}px Arial`;
+    this.ctx.textAlign = 'right';
+    this.ctx.textBaseline = 'bottom';
+
+    const indexText = `#${slice.id.slice(-1)}`;
+    const indexMetrics = this.ctx.measureText(indexText);
+    const indexPadding = 4;
+
+    // Index badge background
+    this.ctx.fillStyle = 'rgba(255, 0, 255, 0.3)';
+    this.ctx.fillRect(
+      x + width - indexMetrics.width - indexPadding * 2 - 8,
+      y + height - indexFontSize - indexPadding - 8,
+      indexMetrics.width + indexPadding * 2,
+      indexFontSize + indexPadding
+    );
+
+    // Index border
+    this.ctx.strokeStyle = '#FF00FF';
+    this.ctx.lineWidth = 1;
+    this.ctx.strokeRect(
+      x + width - indexMetrics.width - indexPadding * 2 - 8,
+      y + height - indexFontSize - indexPadding - 8,
+      indexMetrics.width + indexPadding * 2,
+      indexFontSize + indexPadding
+    );
+
+    // Index text
+    this.ctx.shadowBlur = 0;
+    this.ctx.fillStyle = '#FF00FF';
+    this.ctx.fillText(
+      indexText,
+      x + width - indexPadding - 8,
+      y + height - indexPadding - 8
+    );
 
     this.ctx.restore();
   }
