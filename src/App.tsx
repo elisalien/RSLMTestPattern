@@ -14,14 +14,11 @@ const COLOR_PALETTES = {
 } as const;
 
 const PATTERNS = [
-  { id: 'complete-pro', name: 'Complete Pro', icon: '🎯', description: 'Professional composite pattern' },
-  { id: 'minimal-geometric', name: 'Minimal Geometric', icon: '⭕', description: 'Clean Apple-style design' },
-  { id: 'gradient-paradise', name: 'Gradient Paradise', icon: '🌈', description: 'Vibrant multi-gradients' },
-  { id: 'glassmorphic', name: 'Glassmorphic', icon: '💎', description: 'Modern glass effect' },
-  { id: 'retro-future', name: 'Retro Future', icon: '⚡', description: 'CRT + Cyberpunk style' },
-  { id: 'neo-brutalism', name: 'Neo-Brutalism', icon: '🎪', description: 'Bold colors + hard shadows' },
   { id: 'resolume', name: 'Resolume Classic', icon: '🎬', description: 'Classic Resolume pattern' },
   { id: 'pixel-grid', name: 'Pixel Grid', icon: '#', description: 'LED panel numbering' },
+  { id: 'minimal-geometric', name: 'Minimal Geometric', icon: '⭕', description: 'Clean Apple-style design' },
+  { id: 'gradient-paradise', name: 'Gradient Paradise', icon: '🌈', description: 'Vibrant multi-gradients' },
+  { id: 'neo-brutalism', name: 'Neo-Brutalism', icon: '🎪', description: 'Bold colors + hard shadows' },
 ] as const;
 
 const STYLE_PRESETS = [
@@ -383,7 +380,7 @@ function App() {
                 <Grid3x3 size={24} className="text-cyan-400" />
                 Pattern Selection
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
                 {PATTERNS.map((pattern) => (
                   <div
                     key={pattern.id}
