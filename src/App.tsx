@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
-import { Upload, Download, Settings, Eye, Grid3x3, Palette, Image as ImageIcon, Type, Layers, FileText } from 'lucide-react';
+import { Upload, Download, Settings, Eye, Grid3x3, Palette, Image as ImageIcon, Type, Layers, FileText, Monitor } from 'lucide-react';
 import { resolumeParser } from './utils/resolume-parser';
 import { patternGenerator } from './utils/pattern-generator';
-import { ResolumeSetup, PatternType, PatternConfig, StylePreset, BrandingConfig, ViewMode } from './types';
+import { ResolumeSetup, PatternType, PatternConfig, StylePreset, BrandingConfig, ViewMode, OutputResolution } from './types';
 
 // Color palettes for auto-generation
 const COLOR_PALETTES = {
@@ -32,6 +32,15 @@ const STYLE_PRESETS = [
   { id: 'broadcast', name: 'Broadcast', colors: { bg: '#000000', grid: '#FFFFFF', text: '#FFFF00' } },
 ] as const;
 
+const OUTPUT_RESOLUTIONS: OutputResolution[] = [
+  { id: 'original', name: 'Original (XML)', width: 0, height: 0 },
+  { id: 'hd', name: 'HD 1280×720', width: 1280, height: 720 },
+  { id: 'fhd', name: 'Full HD 1920×1080', width: 1920, height: 1080 },
+  { id: '2k', name: '2K 2560×1440', width: 2560, height: 1440 },
+  { id: '4k', name: '4K UHD 3840×2160', width: 3840, height: 2160 },
+  { id: 'custom', name: 'Custom', width: 0, height: 0 },
+];
+
 function App() {
   // State management
   const [resolumeSetup, setResolumeSetup] = useState<ResolumeSetup | null>(null);
@@ -41,6 +50,9 @@ function App() {
   const [stylePreset, setStylePreset] = useState<StylePreset>('modern');
   const [sliceColors, setSliceColors] = useState<Map<string, string>>(new Map());
   const [isLoading, setIsLoading] = useState(false);
+  const [outputResolution, setOutputResolution] = useState<OutputResolution>(OUTPUT_RESOLUTIONS[0]);
+  const [customWidth, setCustomWidth] = useState<number>(1920);
+  const [customHeight, setCustomHeight] = useState<number>(1080);
   const [branding, setBranding] = useState<BrandingConfig>({
     name: '',
     showCentralBranding: false,
@@ -61,6 +73,19 @@ function App() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
+
+  // Get actual output dimensions
+  const getOutputDimensions = (): { width: number; height: number } => {
+    if (!resolumeSetup) return { width: 1920, height: 1080 };
+
+    if (outputResolution.id === 'original') {
+      return resolumeSetup.compositionSize;
+    } else if (outputResolution.id === 'custom') {
+      return { width: customWidth, height: customHeight };
+    } else {
+      return { width: outputResolution.width, height: outputResolution.height };
+    }
+  };
 
   // Handle XML file upload
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -160,10 +185,24 @@ function App() {
     if (!resolumeSetup) return;
 
     const config = { ...patternConfig, type: selectedPattern };
+    const outputDims = getOutputDimensions();
+
+    // Scale slices proportionally if resolution is different
+    const scaleX = outputDims.width / resolumeSetup.compositionSize.width;
+    const scaleY = outputDims.height / resolumeSetup.compositionSize.height;
+
+    const scaledSlices = resolumeSetup.slices.map(slice => ({
+      ...slice,
+      x: Math.round(slice.x * scaleX),
+      y: Math.round(slice.y * scaleY),
+      width: Math.round(slice.width * scaleX),
+      height: Math.round(slice.height * scaleY),
+    }));
+
     const canvas = patternGenerator.generateComposition(
-      resolumeSetup.slices,
-      resolumeSetup.compositionSize.width,
-      resolumeSetup.compositionSize.height,
+      scaledSlices,
+      outputDims.width,
+      outputDims.height,
       config,
       sliceColors,
       branding.showCentralBranding ? branding.logo : undefined,
@@ -171,7 +210,7 @@ function App() {
     );
 
     setCompositionCanvas(canvas);
-  }, [resolumeSetup, selectedPattern, patternConfig, sliceColors, branding]);
+  }, [resolumeSetup, selectedPattern, patternConfig, sliceColors, branding, outputResolution, customWidth, customHeight]);
 
   // Export composition as PNG
   const exportComposition = () => {
@@ -183,7 +222,8 @@ function App() {
       const a = document.createElement('a');
       a.href = url;
       const modeLabel = viewMode === 'output' ? 'Output' : 'Input';
-      const filename = `${branding.name || resolumeSetup.name}_${selectedPattern}_${modeLabel}_${resolumeSetup.compositionSize.width}x${resolumeSetup.compositionSize.height}.png`;
+      const outputDims = getOutputDimensions();
+      const filename = `${branding.name || resolumeSetup.name}_${selectedPattern}_${modeLabel}_${outputDims.width}x${outputDims.height}.png`;
       a.download = filename;
       a.click();
       URL.revokeObjectURL(url);
@@ -216,7 +256,10 @@ function App() {
                   <span>{resolumeSetup.slices.length} slices</span>
                 </div>
                 <div className="text-gray-600">|</div>
-                <div>{resolumeSetup.compositionSize.width}×{resolumeSetup.compositionSize.height}</div>
+                <div className="flex items-center gap-2">
+                  <Monitor size={16} className="text-purple-400" />
+                  <span>{getOutputDimensions().width}×{getOutputDimensions().height}</span>
+                </div>
               </div>
             )}
           </div>
@@ -402,6 +445,67 @@ function App() {
                 <Settings size={24} className="text-orange-400" />
                 Advanced Settings
               </div>
+
+              {/* Resolution Selector */}
+              <div className="mb-6">
+                <label className="section-header flex items-center gap-2">
+                  <Monitor size={16} />
+                  Output Resolution
+                </label>
+                <select
+                  value={outputResolution.id}
+                  onChange={(e) => {
+                    const selected = OUTPUT_RESOLUTIONS.find(r => r.id === e.target.value);
+                    if (selected) setOutputResolution(selected);
+                  }}
+                  className="input mb-2"
+                >
+                  <option value="original">
+                    Original ({resolumeSetup?.compositionSize.width}×{resolumeSetup?.compositionSize.height})
+                  </option>
+                  {OUTPUT_RESOLUTIONS.slice(1).map((res) => (
+                    <option key={res.id} value={res.id}>
+                      {res.name}
+                    </option>
+                  ))}
+                </select>
+
+                {outputResolution.id === 'custom' && (
+                  <div className="grid grid-cols-2 gap-3 mt-3">
+                    <div>
+                      <label className="text-xs text-gray-400 mb-1 block">Width</label>
+                      <input
+                        type="number"
+                        min="320"
+                        max="7680"
+                        value={customWidth}
+                        onChange={(e) => setCustomWidth(parseInt(e.target.value) || 1920)}
+                        className="input"
+                        placeholder="1920"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-400 mb-1 block">Height</label>
+                      <input
+                        type="number"
+                        min="240"
+                        max="4320"
+                        value={customHeight}
+                        onChange={(e) => setCustomHeight(parseInt(e.target.value) || 1080)}
+                        className="input"
+                        placeholder="1080"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="text-xs text-gray-400 mt-2">
+                  {outputResolution.id === 'original'
+                    ? 'Using composition size from XML'
+                    : `Output: ${getOutputDimensions().width}×${getOutputDimensions().height}`}
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="section-header">Grid Color</label>
@@ -488,7 +592,7 @@ function App() {
                 <Download size={24} />
                 <span>
                   Export {viewMode === 'output' ? 'Output' : 'Input'}
-                  ({resolumeSetup.compositionSize.width}×{resolumeSetup.compositionSize.height})
+                  ({getOutputDimensions().width}×{getOutputDimensions().height})
                 </span>
               </button>
             </div>
