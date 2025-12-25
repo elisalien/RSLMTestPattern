@@ -184,17 +184,23 @@ function App() {
     const config = { ...patternConfig, type: selectedPattern };
     const outputDims = getOutputDimensions();
 
-    // Scale slices proportionally if resolution is different
-    const scaleX = outputDims.width / resolumeSetup.compositionSize.width;
-    const scaleY = outputDims.height / resolumeSetup.compositionSize.height;
+    // Only scale if user selected a different resolution than original
+    // The parser already scales OutputRect to match Virtual Output resolution
+    let scaledSlices = resolumeSetup.slices;
 
-    const scaledSlices = resolumeSetup.slices.map(slice => ({
-      ...slice,
-      x: Math.round(slice.x * scaleX),
-      y: Math.round(slice.y * scaleY),
-      width: Math.round(slice.width * scaleX),
-      height: Math.round(slice.height * scaleY),
-    }));
+    if (outputResolution.id !== 'original') {
+      // User wants a different resolution than the XML's Virtual Output
+      const scaleX = outputDims.width / resolumeSetup.compositionSize.width;
+      const scaleY = outputDims.height / resolumeSetup.compositionSize.height;
+
+      scaledSlices = resolumeSetup.slices.map(slice => ({
+        ...slice,
+        x: Math.round(slice.x * scaleX),
+        y: Math.round(slice.y * scaleY),
+        width: Math.round(slice.width * scaleX),
+        height: Math.round(slice.height * scaleY),
+      }));
+    }
 
     const canvas = patternGenerator.generateComposition(
       scaledSlices,
