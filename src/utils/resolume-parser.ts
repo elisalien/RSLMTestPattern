@@ -41,14 +41,28 @@ export class ResolumeXMLParser {
       // Get the first screen (Resolume typically exports one screen)
       const screen = Array.isArray(screens.Screen) ? screens.Screen[0] : screens.Screen;
 
-      // Extract composition size
-      const compSize = screenSetup.CurrentCompositionTextureSize;
-      const compositionSize = {
-        width: compSize?.['@_width'] || 1920,
-        height: compSize?.['@_height'] || 1080,
-      };
+      // Extract composition size from Virtual Output Device (preferred) or fallback to CurrentCompositionTextureSize
+      let compositionSize = { width: 1920, height: 1080 };
 
-      // Extract slices
+      // Try to get from Virtual Output Device first
+      if (screen.OutputDevice?.OutputDeviceVirtual) {
+        const virtualOutput = screen.OutputDevice.OutputDeviceVirtual;
+        compositionSize = {
+          width: virtualOutput['@_width'] || 1920,
+          height: virtualOutput['@_height'] || 1080,
+        };
+        console.log('📺 Using Virtual Output resolution:', compositionSize);
+      } else if (screenSetup.CurrentCompositionTextureSize) {
+        // Fallback to old method
+        const compSize = screenSetup.CurrentCompositionTextureSize;
+        compositionSize = {
+          width: compSize?.['@_width'] || 1920,
+          height: compSize?.['@_height'] || 1080,
+        };
+        console.log('📐 Using CurrentCompositionTextureSize:', compositionSize);
+      }
+
+      // Calculate bounding box of all OutputRect to determine the internal resolution
       const layers = screen.layers;
       if (!layers || !layers.Slice) {
         console.warn('No slices found in XML, creating empty setup');
@@ -67,10 +81,28 @@ export class ResolumeXMLParser {
 
       const sliceArray = Array.isArray(layers.Slice) ? layers.Slice : [layers.Slice];
 
+      // Calculate the bounding box of all OutputRect to get internal resolution
+      let maxX = 0, maxY = 0;
+      sliceArray.forEach((slice: any) => {
+        const outputRect = this.parseRect(slice.OutputRect);
+        outputRect.forEach(v => {
+          maxX = Math.max(maxX, v.x);
+          maxY = Math.max(maxY, v.y);
+        });
+      });
+
+      const internalResolution = { width: maxX, height: maxY };
+      console.log('🔧 Internal OutputRect resolution:', internalResolution);
+
+      // Calculate scale factor from internal resolution to Virtual Output
+      const scaleX = compositionSize.width / internalResolution.width;
+      const scaleY = compositionSize.height / internalResolution.height;
+      console.log('📏 Scale factors:', { scaleX, scaleY });
+
       const slices: SliceData[] = sliceArray
         .map((slice: any, index: number) => {
           try {
-            const parsed = this.parseSlice(slice, viewMode);
+            const parsed = this.parseSlice(slice, viewMode, scaleX, scaleY);
             console.log(`✓ Slice ${index + 1} parsed successfully:`, {
               name: parsed.name,
               dimensions: `${parsed.width}x${parsed.height}`,
@@ -104,7 +136,7 @@ export class ResolumeXMLParser {
     }
   }
 
-  private parseSlice(slice: any, viewMode: ViewMode = 'output'): SliceData {
+  private parseSlice(slice: any, viewMode: ViewMode = 'output', scaleX: number = 1, scaleY: number = 1): SliceData {
     const id = slice['@_uniqueId']?.toString() || `slice_${Date.now()}_${Math.random()}`;
 
     // Get slice name
@@ -114,7 +146,8 @@ export class ResolumeXMLParser {
     console.log(`🔍 Parsing slice "${name}":`, {
       hasOutputRect: !!slice.OutputRect,
       hasInputRect: !!slice.InputRect,
-      viewMode
+      viewMode,
+      scale: `${scaleX.toFixed(3)}x, ${scaleY.toFixed(3)}y`
     });
 
     // Parse both rects
@@ -150,15 +183,16 @@ export class ResolumeXMLParser {
     const minY = Math.min(...yValues);
     const maxY = Math.max(...yValues);
 
-    const width = maxX - minX;
-    const height = maxY - minY;
-    const x = minX;
-    const y = minY;
+    // Apply scaling to convert from internal resolution to Virtual Output resolution
+    const width = (maxX - minX) * scaleX;
+    const height = (maxY - minY) * scaleY;
+    const x = minX * scaleX;
+    const y = minY * scaleY;
 
-    console.log(`  📐 Calculated dimensions:`, {
+    console.log(`  📐 Calculated dimensions (after scaling):`, {
       x, y, width, height,
-      xRange: `${minX} to ${maxX}`,
-      yRange: `${minY} to ${maxY}`
+      originalX: minX, originalY: minY,
+      originalWidth: maxX - minX, originalHeight: maxY - minY
     });
 
     // Validate dimensions
