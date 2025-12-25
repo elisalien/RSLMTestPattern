@@ -1,32 +1,15 @@
 import { useState, useRef, useEffect } from 'react';
-import { Upload, Download, Settings, Eye, Grid3x3, Palette, Image as ImageIcon, Type, Layers, FileText, Monitor } from 'lucide-react';
+import { Upload, Download, Settings, Eye, Grid3x3, Image as ImageIcon, Type, Layers, FileText, Monitor, Film } from 'lucide-react';
 import { resolumeParser } from './utils/resolume-parser';
 import { patternGenerator } from './utils/pattern-generator';
-import { ResolumeSetup, PatternType, PatternConfig, StylePreset, BrandingConfig, ViewMode, OutputResolution } from './types';
+import { ResolumeSetup, TemplateType, TemplateConfig, BrandingConfig, ViewMode, OutputResolution, SliceGifConfig } from './types';
 
-// Color palettes for auto-generation
-const COLOR_PALETTES = {
-  vibrant: ['#FF6B9D', '#C44569', '#FEA47F', '#F97F51', '#58B19F', '#2C3A47', '#B33771', '#3B3B98'],
-  retro: ['#5F27CD', '#00D2D3', '#1DD1A1', '#EE5A24', '#FF9FF3', '#48DBFB', '#54A0FF', '#00D2D3'],
-  neon: ['#FF006E', '#FB5607', '#FFBE0B', '#8338EC', '#3A86FF', '#06FFA5', '#FF006E', '#FFBE0B'],
-  broadcast: ['#0000FF', '#00FF00', '#00FFFF', '#FF0000', '#FF00FF', '#FFFF00', '#FFFFFF', '#808080'],
-  minitel: ['#00FF00', '#FF00FF', '#00FFFF', '#FFFF00', '#FF0000', '#0000FF', '#FFFFFF', '#000000'],
-} as const;
-
-const PATTERNS = [
-  { id: 'resolume', name: 'Resolume Classic', icon: '🎬', description: 'Classic Resolume pattern' },
-  { id: 'pixel-grid', name: 'Pixel Grid', icon: '#', description: 'LED panel numbering' },
-  { id: 'minimal-geometric', name: 'Minimal Geometric', icon: '⭕', description: 'Clean Apple-style design' },
-  { id: 'gradient-paradise', name: 'Gradient Paradise', icon: '🌈', description: 'Vibrant multi-gradients' },
-  { id: 'neo-brutalism', name: 'Neo-Brutalism', icon: '🎪', description: 'Bold colors + hard shadows' },
-] as const;
-
-const STYLE_PRESETS = [
-  { id: 'modern', name: 'Modern', colors: { bg: '#1a1a1a', grid: '#00ff00', text: '#ffffff' } },
-  { id: 'retro-crt', name: 'Retro CRT', colors: { bg: '#000000', grid: '#00ff00', text: '#00ff00' } },
-  { id: 'bios', name: 'BIOS', colors: { bg: '#0000AA', grid: '#AAAAAA', text: '#FFFFFF' } },
-  { id: 'minitel', name: 'Minitel', colors: { bg: '#000000', grid: '#00FF00', text: '#00FF00' } },
-  { id: 'broadcast', name: 'Broadcast', colors: { bg: '#000000', grid: '#FFFFFF', text: '#FFFF00' } },
+// Template options
+const TEMPLATES = [
+  { id: 'classic-broadcast', name: 'Classic Broadcast', icon: '📺', description: 'Professional SMPTE-style grid with safe zones' },
+  { id: 'led-panel-pro', name: 'LED Panel Pro', icon: '🔲', description: 'Precise pixel grid for LED alignment' },
+  { id: 'projection-alignment', name: 'Projection Alignment', icon: '🎯', description: 'Focus circles and convergence markers' },
+  { id: 'minimal-clean', name: 'Minimal Clean', icon: '⚪', description: 'Ultra-minimal modern aesthetic' },
 ] as const;
 
 const OUTPUT_RESOLUTIONS: OutputResolution[] = [
@@ -43,33 +26,28 @@ function App() {
   const [resolumeSetup, setResolumeSetup] = useState<ResolumeSetup | null>(null);
   const [rawXML, setRawXML] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('output');
-  const [selectedPattern, setSelectedPattern] = useState<PatternType>('resolume');
-  const [stylePreset, setStylePreset] = useState<StylePreset>('modern');
-  const [sliceColors, setSliceColors] = useState<Map<string, string>>(new Map());
+  const [selectedTemplate, setSelectedTemplate] = useState<TemplateType>('classic-broadcast');
   const [isLoading, setIsLoading] = useState(false);
   const [outputResolution, setOutputResolution] = useState<OutputResolution>(OUTPUT_RESOLUTIONS[0]);
   const [customWidth, setCustomWidth] = useState<number>(1920);
   const [customHeight, setCustomHeight] = useState<number>(1080);
   const [branding, setBranding] = useState<BrandingConfig>({
     name: '',
-    showCentralBranding: false,
+    logo: null,
   });
-  const [patternConfig, setPatternConfig] = useState<PatternConfig>({
-    type: 'resolume',
-    backgroundColor: '#1a1a1a',
-    gridColor: '#00ff00',
-    textColor: '#ffffff',
-    showText: true,
-    showUFO: true,
-    showDiagonal: true,
-    gridSize: 50,
-    fontSize: 24,
-    stylePreset: 'modern',
+  const [globalGif, setGlobalGif] = useState<HTMLImageElement | null>(null);
+  const [sliceGifs, setSliceGifs] = useState<SliceGifConfig>({});
+  const [templateConfig, setTemplateConfig] = useState<TemplateConfig>({
+    type: 'classic-broadcast',
+    gridSize: 64,
+    globalGif: null,
   });
   const [compositionCanvas, setCompositionCanvas] = useState<HTMLCanvasElement | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
+  const globalGifInputRef = useRef<HTMLInputElement>(null);
+  const sliceGifInputRefs = useRef<{ [key: string]: HTMLInputElement | null }>({});
 
   // Get actual output dimensions
   const getOutputDimensions = (): { width: number; height: number } => {
@@ -98,7 +76,6 @@ function App() {
 
       if (setup) {
         setResolumeSetup(setup);
-        generateSliceColors(setup.slices);
       } else {
         alert('Error parsing Resolume XML. Check console for details.');
       }
@@ -113,9 +90,6 @@ function App() {
       const setup = resolumeParser.parse(rawXML, viewMode);
       if (setup) {
         setResolumeSetup(setup);
-        if (sliceColors.size === 0) {
-          generateSliceColors(setup.slices);
-        }
       }
     }
   }, [viewMode, rawXML]);
@@ -136,52 +110,44 @@ function App() {
     reader.readAsDataURL(file);
   };
 
-  // Generate random colors for slices
-  const generateSliceColors = (slices: any[]) => {
-    const palette = COLOR_PALETTES.vibrant;
-    const newColors = new Map<string, string>();
+  // Handle global GIF upload
+  const handleGlobalGifUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
 
-    slices.forEach((slice, index) => {
-      newColors.set(slice.id, palette[index % palette.length]);
-    });
-
-    setSliceColors(newColors);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        setGlobalGif(img);
+        setTemplateConfig({ ...templateConfig, globalGif: img });
+      };
+      img.src = e.target?.result as string;
+    };
+    reader.readAsDataURL(file);
   };
 
-  // Apply color palette
-  const applyColorPalette = (paletteName: keyof typeof COLOR_PALETTES) => {
-    if (!resolumeSetup) return;
+  // Handle per-slice GIF upload
+  const handleSliceGifUpload = (sliceId: string, event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
 
-    const palette = COLOR_PALETTES[paletteName];
-    const newColors = new Map<string, string>();
-
-    resolumeSetup.slices.forEach((slice, index) => {
-      newColors.set(slice.id, palette[index % palette.length]);
-    });
-
-    setSliceColors(newColors);
-  };
-
-  // Apply style preset
-  const applyStylePreset = (preset: StylePreset) => {
-    setStylePreset(preset);
-    const presetConfig = STYLE_PRESETS.find(p => p.id === preset);
-    if (presetConfig) {
-      setPatternConfig({
-        ...patternConfig,
-        backgroundColor: presetConfig.colors.bg,
-        gridColor: presetConfig.colors.grid,
-        textColor: presetConfig.colors.text,
-        stylePreset: preset,
-      });
-    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        setSliceGifs({ ...sliceGifs, [sliceId]: img });
+      };
+      img.src = e.target?.result as string;
+    };
+    reader.readAsDataURL(file);
   };
 
   // Generate complete composition
   useEffect(() => {
     if (!resolumeSetup) return;
 
-    const config = { ...patternConfig, type: selectedPattern };
+    const config = { ...templateConfig, type: selectedTemplate };
     const outputDims = getOutputDimensions();
 
     // Only scale if user selected a different resolution than original
@@ -207,13 +173,13 @@ function App() {
       outputDims.width,
       outputDims.height,
       config,
-      sliceColors,
-      branding.showCentralBranding ? branding.logo : undefined,
-      branding.showCentralBranding ? branding.name : undefined
+      sliceGifs,
+      branding.logo,
+      globalGif
     );
 
     setCompositionCanvas(canvas);
-  }, [resolumeSetup, selectedPattern, patternConfig, sliceColors, branding, outputResolution, customWidth, customHeight]);
+  }, [resolumeSetup, selectedTemplate, templateConfig, sliceGifs, branding, globalGif, outputResolution, customWidth, customHeight]);
 
   // Export composition as PNG
   const exportComposition = () => {
@@ -226,18 +192,11 @@ function App() {
       a.href = url;
       const modeLabel = viewMode === 'output' ? 'Output' : 'Input';
       const outputDims = getOutputDimensions();
-      const filename = `${branding.name || resolumeSetup.name}_${selectedPattern}_${modeLabel}_${outputDims.width}x${outputDims.height}.png`;
+      const filename = `${branding.name || resolumeSetup.name}_${selectedTemplate}_${modeLabel}_${outputDims.width}x${outputDims.height}.png`;
       a.download = filename;
       a.click();
       URL.revokeObjectURL(url);
     });
-  };
-
-  // Change slice color
-  const changeSliceColor = (sliceId: string, color: string) => {
-    const newColors = new Map(sliceColors);
-    newColors.set(sliceId, color);
-    setSliceColors(newColors);
   };
 
   return (
@@ -250,7 +209,7 @@ function App() {
               <h1 className="text-4xl font-bold gradient-text mb-2">
                 Resolume Test Pattern Generator
               </h1>
-              <p className="text-gray-400 text-sm">Professional test patterns for Resolume Arena</p>
+              <p className="text-gray-400 text-sm">Professional test patterns for LED panels, projectors & displays</p>
             </div>
             {resolumeSetup && (
               <div className="flex items-center gap-4 text-sm text-gray-400 animate-slide-up">
@@ -330,12 +289,29 @@ function App() {
             )}
           </div>
 
-          {/* Logo Upload Card */}
+          {/* Branding & Media Card */}
           <div className="card">
             <div className="card-header">
               <ImageIcon size={24} className="text-purple-400" />
-              Branding
+              Branding & Media
             </div>
+
+            {/* Brand Name */}
+            <div className="mb-4">
+              <label className="section-header">
+                <Type size={16} />
+                Branding Name
+              </label>
+              <input
+                type="text"
+                value={branding.name}
+                onChange={(e) => setBranding({ ...branding, name: e.target.value })}
+                placeholder="Your name or company..."
+                className="input"
+              />
+            </div>
+
+            {/* Logo Upload */}
             <input
               ref={logoInputRef}
               type="file"
@@ -345,108 +321,65 @@ function App() {
             />
             <button
               onClick={() => logoInputRef.current?.click()}
-              className="w-full btn btn-purple flex items-center justify-center gap-2 py-4"
+              className="w-full btn btn-purple flex items-center justify-center gap-2 py-3 mb-3"
             >
-              <ImageIcon size={20} />
-              <span>Upload Logo</span>
+              <ImageIcon size={18} />
+              <span>{branding.logo ? 'Change Logo' : 'Upload Logo'}</span>
             </button>
 
-            <div className="mt-4 space-y-3">
-              <div>
-                <label className="section-header">
-                  <Type size={16} />
-                  Branding Name
-                </label>
-                <input
-                  type="text"
-                  value={branding.name}
-                  onChange={(e) => setBranding({ ...branding, name: e.target.value })}
-                  placeholder="Your name or company..."
-                  className="input"
-                />
-              </div>
-              <label className="flex items-center gap-2 text-gray-300 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={branding.showCentralBranding}
-                  onChange={(e) => setBranding({ ...branding, showCentralBranding: e.target.checked })}
-                  className="w-4 h-4 rounded border-gray-600 text-cyan-500 focus:ring-cyan-500"
-                />
-                Show logo on composition
-              </label>
-            </div>
+            {/* Global GIF Upload */}
+            <input
+              ref={globalGifInputRef}
+              type="file"
+              accept="image/gif"
+              onChange={handleGlobalGifUpload}
+              className="hidden"
+            />
+            <button
+              onClick={() => globalGifInputRef.current?.click()}
+              className="w-full btn btn-secondary flex items-center justify-center gap-2 py-3"
+            >
+              <Film size={18} />
+              <span>{globalGif ? 'Change Global GIF' : 'Upload Global GIF'}</span>
+            </button>
+
+            <p className="text-xs text-gray-400 mt-2">
+              Logo and GIF will appear on ALL slices. You can also add per-slice GIFs below.
+            </p>
           </div>
         </div>
 
         {resolumeSetup && (
           <div className="space-y-6 animate-scale-in">
-            {/* Pattern Selection */}
+            {/* Template Selection */}
             <div className="card">
               <div className="card-header">
                 <Grid3x3 size={24} className="text-cyan-400" />
-                Pattern Selection
+                Template Selection
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-                {PATTERNS.map((pattern) => (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {TEMPLATES.map((template) => (
                   <div
-                    key={pattern.id}
-                    onClick={() => setSelectedPattern(pattern.id as PatternType)}
-                    className={`pattern-card border-gray-600 ${selectedPattern === pattern.id ? 'active' : ''}`}
-                    title={pattern.description}
+                    key={template.id}
+                    onClick={() => setSelectedTemplate(template.id as TemplateType)}
+                    className={`pattern-card border-gray-600 ${selectedTemplate === template.id ? 'active' : ''}`}
+                    title={template.description}
                   >
-                    <div className="text-3xl mb-2">{pattern.icon}</div>
-                    <div className="text-xs text-gray-300 font-medium">{pattern.name}</div>
+                    <div className="text-3xl mb-2">{template.icon}</div>
+                    <div className="text-xs text-gray-300 font-medium text-center">{template.name}</div>
                   </div>
                 ))}
               </div>
+              <p className="text-xs text-gray-400 mt-3">
+                All templates include: grid, center crosshair, corner markers, and labels on each slice.
+              </p>
             </div>
 
-            {/* Style & Colors */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Style Presets */}
-              <div className="card">
-                <div className="card-header">
-                  <Palette size={24} className="text-pink-400" />
-                  Style Presets
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  {STYLE_PRESETS.map((preset) => (
-                    <button
-                      key={preset.id}
-                      onClick={() => applyStylePreset(preset.id as StylePreset)}
-                      className={`btn ${stylePreset === preset.id ? 'btn-primary' : 'btn-secondary'}`}
-                    >
-                      {preset.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Color Palettes */}
-              <div className="card">
-                <div className="card-header">
-                  <Palette size={24} className="text-yellow-400" />
-                  Color Palettes
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {Object.keys(COLOR_PALETTES).map((paletteName) => (
-                    <button
-                      key={paletteName}
-                      onClick={() => applyColorPalette(paletteName as keyof typeof COLOR_PALETTES)}
-                      className="btn btn-secondary capitalize"
-                    >
-                      {paletteName}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Advanced Settings */}
+            {/* Settings */}
             <div className="card">
               <div className="card-header">
                 <Settings size={24} className="text-orange-400" />
-                Advanced Settings
+                Settings
               </div>
 
               {/* Resolution Selector */}
@@ -509,81 +442,58 @@ function App() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="section-header">Grid Color</label>
-                  <input
-                    type="color"
-                    value={patternConfig.gridColor}
-                    onChange={(e) => setPatternConfig({ ...patternConfig, gridColor: e.target.value })}
-                    className="w-full h-12 rounded-lg cursor-pointer border border-gray-600"
-                  />
-                </div>
-                <div>
-                  <label className="section-header">Text Color</label>
-                  <input
-                    type="color"
-                    value={patternConfig.textColor}
-                    onChange={(e) => setPatternConfig({ ...patternConfig, textColor: e.target.value })}
-                    className="w-full h-12 rounded-lg cursor-pointer border border-gray-600"
-                  />
-                </div>
-                <div>
-                  <label className="section-header">Grid Size (px)</label>
-                  <input
-                    type="number"
-                    min="10"
-                    max="200"
-                    value={patternConfig.gridSize}
-                    onChange={(e) => setPatternConfig({ ...patternConfig, gridSize: parseInt(e.target.value) })}
-                    className="input"
-                  />
-                </div>
-              </div>
-              <div className="mt-4 flex gap-6">
-                <label className="flex items-center gap-2 text-gray-300 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={patternConfig.showText}
-                    onChange={(e) => setPatternConfig({ ...patternConfig, showText: e.target.checked })}
-                    className="w-4 h-4 rounded border-gray-600 text-cyan-500"
-                  />
-                  Show text labels
+              {/* Grid Size */}
+              <div>
+                <label className="section-header flex items-center gap-2">
+                  <Grid3x3 size={16} />
+                  Grid Size: {templateConfig.gridSize}px
                 </label>
-                <label className="flex items-center gap-2 text-gray-300 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={patternConfig.showDiagonal}
-                    onChange={(e) => setPatternConfig({ ...patternConfig, showDiagonal: e.target.checked })}
-                    className="w-4 h-4 rounded border-gray-600 text-cyan-500"
-                  />
-                  Show diagonals
-                </label>
+                <input
+                  type="range"
+                  min="20"
+                  max="200"
+                  step="4"
+                  value={templateConfig.gridSize}
+                  onChange={(e) => setTemplateConfig({ ...templateConfig, gridSize: parseInt(e.target.value) })}
+                  className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                />
+                <div className="flex justify-between text-xs text-gray-400 mt-1">
+                  <span>Fine (20px)</span>
+                  <span>Coarse (200px)</span>
+                </div>
               </div>
             </div>
 
-            {/* Slice Colors */}
+            {/* Per-Slice GIFs */}
             <div className="card">
               <div className="card-header">
-                <Palette size={24} className="text-purple-400" />
-                Slice Colors
+                <Film size={24} className="text-pink-400" />
+                Per-Slice GIFs (Optional)
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 {resolumeSetup.slices.map((slice) => (
-                  <div key={slice.id} className="flex items-center gap-3">
+                  <div key={slice.id} className="border border-gray-700 rounded-lg p-3 hover:border-gray-600 transition-colors">
+                    <div className="text-white text-sm font-medium truncate mb-2">{slice.name}</div>
+                    <div className="text-gray-400 text-xs mb-3">{slice.width}×{slice.height}</div>
                     <input
-                      type="color"
-                      value={sliceColors.get(slice.id) || '#000000'}
-                      onChange={(e) => changeSliceColor(slice.id, e.target.value)}
-                      className="w-12 h-12 rounded-lg cursor-pointer border border-gray-600"
+                      ref={(el) => (sliceGifInputRefs.current[slice.id] = el)}
+                      type="file"
+                      accept="image/gif"
+                      onChange={(e) => handleSliceGifUpload(slice.id, e)}
+                      className="hidden"
                     />
-                    <div className="flex-1 min-w-0">
-                      <div className="text-white text-sm font-medium truncate">{slice.name}</div>
-                      <div className="text-gray-400 text-xs">{slice.width}×{slice.height}</div>
-                    </div>
+                    <button
+                      onClick={() => sliceGifInputRefs.current[slice.id]?.click()}
+                      className={`w-full btn ${sliceGifs[slice.id] ? 'btn-primary' : 'btn-secondary'} text-xs py-2`}
+                    >
+                      {sliceGifs[slice.id] ? 'Change GIF' : 'Add GIF'}
+                    </button>
                   </div>
                 ))}
               </div>
+              <p className="text-xs text-gray-400 mt-3">
+                Per-slice GIFs override the global GIF for that specific slice.
+              </p>
             </div>
 
             {/* Export & Preview */}
