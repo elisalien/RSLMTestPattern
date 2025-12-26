@@ -527,17 +527,40 @@ export class TestPatternGenerator {
   }
 
   /**
-   * Draw logo on each slice
+   * Draw logo on each slice (top-right corner with background)
    */
   private drawLogoOnSlice(slice: SliceData, logo: HTMLImageElement) {
     const { x, y, width, height } = slice;
-    const logoSize = Math.min(width, height) * 0.12;
-    const logoX = x + width - logoSize - 20;
-    const logoY = y + 20;
+    const logoSize = Math.min(width, height) * 0.15; // Slightly larger
+    const padding = 15;
+    const logoX = x + width - logoSize - padding;
+    const logoY = y + padding;
 
     this.ctx.save();
-    this.ctx.globalAlpha = 0.8;
+
+    // Draw background for logo with vibrant border
+    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+    this.ctx.fillRect(logoX - 8, logoY - 8, logoSize + 16, logoSize + 16);
+
+    // Draw vibrant border (cyan glow)
+    this.ctx.strokeStyle = '#00FFFF';
+    this.ctx.lineWidth = 2;
+    this.ctx.shadowColor = '#00FFFF';
+    this.ctx.shadowBlur = 8;
+    this.ctx.strokeRect(logoX - 8, logoY - 8, logoSize + 16, logoSize + 16);
+
+    // Draw logo
+    this.ctx.shadowBlur = 0;
+    this.ctx.globalAlpha = 1;
     this.ctx.drawImage(logo, logoX, logoY, logoSize, logoSize);
+
+    // Add "LOGO" label below for visual confirmation
+    this.ctx.font = 'bold 10px Arial';
+    this.ctx.fillStyle = '#00FFFF';
+    this.ctx.textAlign = 'center';
+    this.ctx.textBaseline = 'top';
+    this.ctx.fillText('LOGO', logoX + logoSize / 2, logoY + logoSize + 10);
+
     this.ctx.restore();
   }
 
