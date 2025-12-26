@@ -24,37 +24,20 @@ export interface ResolumeSetup {
   slices: SliceData[];
 }
 
-export type PatternType = 
-  | 'complete-pro'
-  | 'minimal-geometric'
-  | 'gradient-paradise'
-  | 'glassmorphic'
-  | 'retro-future'
-  | 'neo-brutalism'
-  | 'smpte-75'
-  | 'crosshatch'
-  | 'pixel-grid'
-  | 'resolume';
+export type TemplateType =
+  | 'classic-broadcast'
+  | 'led-panel-pro'
+  | 'projection-alignment'
+  | 'minimal-clean';
 
-export type StylePreset =
-  | 'modern'
-  | 'retro-crt'
-  | 'bios'
-  | 'minitel'
-  | 'broadcast';
-
-export interface PatternConfig {
-  type: PatternType;
-  backgroundColor: string;
-  gridColor: string;
-  textColor: string;
-  showText: boolean;
-  showUFO: boolean;
-  showDiagonal: boolean;
+export interface TemplateConfig {
+  type: TemplateType;
   gridSize: number;
-  fontSize: number;
-  customText?: string;
-  stylePreset?: StylePreset;
+  globalGif?: HTMLImageElement | null;
+}
+
+export interface SliceGifConfig {
+  [sliceId: string]: HTMLImageElement | null;
 }
 
 export interface ExportOptions {
@@ -74,8 +57,7 @@ export interface OutputResolution {
 
 export interface BrandingConfig {
   name: string;
-  logo?: HTMLImageElement;
-  showCentralBranding: boolean;
+  logo?: HTMLImageElement | null;
 }
 
 export type ViewMode = 'input' | 'output';
