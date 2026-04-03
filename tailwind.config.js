@@ -5,17 +5,7 @@ export default {
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
-    extend: {
-      colors: {
-        'xp-blue': '#0054E3',
-        'xp-title': '#0997FF',
-        'xp-gray': '#ECE9D8',
-        'xp-border': '#0054E3',
-      },
-      fontFamily: {
-        'xp': ['"Tahoma"', 'sans-serif'],
-      },
-    },
+    extend: {},
   },
   plugins: [],
 }
