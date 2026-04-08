@@ -127,6 +127,8 @@ export interface DecorativeSettings {
   size: number;       // 50-200 (percentage of default size)
   opacity: number;    // 10-100
   animated: boolean;  // subtle floating animation
+  animSpeed: number;  // 0.25-4 speed multiplier
+  durationMs: number; // animation cycle duration for looping export
 }
 
 export const DECORATIVE_ELEMENTS: { id: DecorativeElementType; name: string; icon: string }[] = [
@@ -150,6 +152,8 @@ export const DEFAULT_DECORATIVE_SETTINGS: DecorativeSettings = {
   size: 100,
   opacity: 40,
   animated: false,
+  animSpeed: 1,
+  durationMs: 3000,
 };
 
 // ─── Logo Settings ──────────────────────────────────────────────

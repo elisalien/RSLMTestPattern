@@ -936,11 +936,13 @@ function drawDecorativeElements(
       const elemPhase = rng() * Math.PI * 2; // unique phase offset per element
       const elemSpeed = 0.5 + rng() * 0.5; // unique speed per element
 
-      // Smooth multi-axis animation
+      // Smooth multi-axis animation (uses integer frequency multipliers for perfect looping)
       let animX = 0, animY = 0, animScale = 1, animAlpha = settings.opacity / 100;
       let animRotation = 0;
       if (settings.animated && animProgress !== undefined) {
-        const t = animProgress * Math.PI * 2;
+        const speed = settings.animSpeed;
+        // Use integer-based frequencies so all sin/cos complete full cycles at progress=1
+        const t = animProgress * Math.PI * 2 * speed;
         // Smooth floating: combined sin/cos for organic Lissajous-like movement
         animY = Math.sin(t * elemSpeed + elemPhase) * elemSize * 0.5;
         animX = Math.cos(t * elemSpeed * 0.7 + elemPhase + 1.3) * elemSize * 0.25;

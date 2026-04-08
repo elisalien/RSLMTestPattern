@@ -97,7 +97,8 @@ export function Preview() {
 
       const vpInfo = VIDEO_PRESETS.find(p => p.id === videoPreset);
       const apInfo = ANIMATION_PRESETS.find(p => p.id === animationPreset);
-      const duration = Math.max(vpInfo?.durationMs || 2000, apInfo?.durationMs || 2000);
+      const decoMs = decorativeSettings.animated ? (decorativeSettings.durationMs || 3000) : 0;
+      const duration = Math.max(vpInfo?.durationMs || 2000, apInfo?.durationMs || 2000, decoMs);
 
       const animate = (time: number) => {
         const elapsed = time - startTimeRef.current;
@@ -179,6 +180,11 @@ function getSupportedMimeType(): string {
   return ''; // let browser pick default
 }
 
+/** Wait for next animation frame (used for reliable frame pacing in video export) */
+function waitFrame(): Promise<number> {
+  return new Promise(resolve => requestAnimationFrame(resolve));
+}
+
 /** Export composition as looping video (WebM) */
 export async function exportVideo() {
   const s = useStore.getState();
@@ -194,19 +200,38 @@ export async function exportVideo() {
 
     const vpInfo = VIDEO_PRESETS.find(p => p.id === s.videoPreset);
     const apInfo = ANIMATION_PRESETS.find(p => p.id === s.animationPreset);
-    const duration = Math.max(vpInfo?.durationMs || 2000, apInfo?.durationMs || 2000);
+    const decoMs = s.decorativeSettings?.animated ? (s.decorativeSettings.durationMs || 3000) : 0;
+    const duration = Math.max(vpInfo?.durationMs || 2000, apInfo?.durationMs || 2000, decoMs);
     const fps = vpInfo?.fps || 30;
     const totalFrames = Math.round((duration / 1000) * fps);
 
+    // Phase 1: Pre-render all frames to ImageBitmap array
+    // This eliminates timing issues entirely - no real-time rendering pressure
+    const frameBitmaps: ImageBitmap[] = [];
+    for (let frame = 0; frame < totalFrames; frame++) {
+      const progress = frame / totalFrames;
+      const options = buildOptions(s, progress);
+      const frameCanvas = generateComposition(slices, dims.width, dims.height, options);
+      const bitmap = await createImageBitmap(frameCanvas);
+      frameBitmaps.push(bitmap);
+
+      // Yield every 5 frames to keep UI responsive
+      if (frame % 5 === 0) await waitFrame();
+    }
+
+    // Phase 2: Play pre-rendered frames into MediaRecorder at exact timing
     const recordCanvas = document.createElement('canvas');
     recordCanvas.width = dims.width;
     recordCanvas.height = dims.height;
+    const recordCtx = recordCanvas.getContext('2d')!;
 
-    const stream = recordCanvas.captureStream(fps);
+    // Use captureStream(0) for manual frame control
+    const stream = recordCanvas.captureStream(0);
+    const videoTrack = stream.getVideoTracks()[0] as any;
 
     const mimeType = getSupportedMimeType();
     const recorderOptions: MediaRecorderOptions = {
-      videoBitsPerSecond: 12000000, // Higher bitrate for better quality
+      videoBitsPerSecond: 16000000,
     };
     if (mimeType) recorderOptions.mimeType = mimeType;
 
@@ -235,21 +260,26 @@ export async function exportVideo() {
 
     mediaRecorder.start();
 
-    // Render frames with proper timing using requestAnimationFrame for smooth output
-    const recordCtx = recordCanvas.getContext('2d')!;
+    // Paint each pre-rendered frame and request a capture
     for (let frame = 0; frame < totalFrames; frame++) {
-      const progress = frame / totalFrames;
-      const options = buildOptions(s, progress);
-      const frameCanvas = generateComposition(slices, dims.width, dims.height, options);
       recordCtx.clearRect(0, 0, dims.width, dims.height);
-      recordCtx.drawImage(frameCanvas, 0, 0);
+      recordCtx.drawImage(frameBitmaps[frame], 0, 0);
 
-      // Yield to let MediaRecorder capture the frame properly
-      await new Promise(r => setTimeout(r, 1000 / fps));
+      // Request frame capture on the video track if supported (Chrome)
+      if (videoTrack && typeof videoTrack.requestFrame === 'function') {
+        videoTrack.requestFrame();
+      }
+
+      // Wait for next vsync to ensure the frame is composited
+      await waitFrame();
     }
 
     mediaRecorder.stop();
     await exportPromise;
+
+    // Cleanup bitmaps
+    frameBitmaps.forEach(b => b.close());
+
   } catch (err) {
     console.error('Video export failed:', err);
     alert('Video export failed. Your browser may not support WebM recording.\nTry using Chrome or Edge for best compatibility.');
