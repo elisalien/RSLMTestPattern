@@ -190,6 +190,7 @@ export const DEFAULT_LOGO_SETTINGS: LogoSettings = {
 export interface LogoInstance {
   id: string;
   settings: LogoSettings;
+  image: HTMLImageElement | null; // null = uses main logo
 }
 
 export const MAX_LOGO_INSTANCES = 9;

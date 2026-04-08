@@ -108,6 +108,7 @@ interface AppState {
   addLogoInstance: () => void;
   removeLogoInstance: (id: string) => void;
   updateLogoInstance: (id: string, settings: Partial<LogoSettings>) => void;
+  setLogoInstanceImage: (id: string, img: HTMLImageElement | null) => void;
   setGlobalOverlay: (src: OverlaySource | null) => void;
   setSliceOverlay: (sliceId: string, src: OverlaySource | null) => void;
   setShowLabels: (v: boolean) => void;
@@ -280,6 +281,7 @@ export const useStore = create<AppState>((set, get) => ({
     const instance: LogoInstance = {
       id: `logo-${Date.now()}`,
       settings: { ...DEFAULT_LOGO_SETTINGS, position: pos },
+      image: null,
     };
     set({ extraLogos: [...extraLogos, instance] });
     persistSettings(get());
@@ -299,6 +301,14 @@ export const useStore = create<AppState>((set, get) => ({
       ),
     }));
     persistSettings(get());
+  },
+
+  setLogoInstanceImage: (id: string, img: HTMLImageElement | null) => {
+    set((state) => ({
+      extraLogos: state.extraLogos.map(l =>
+        l.id === id ? { ...l, image: img } : l
+      ),
+    }));
   },
 
   setGlobalOverlay: (src) => set({ globalOverlay: src }),

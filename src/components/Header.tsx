@@ -1,4 +1,4 @@
-import { Layers, Monitor, PanelLeftClose, PanelLeft, ScreenShare } from 'lucide-react';
+import { Layers, Monitor, PanelLeftClose, PanelLeft, ScreenShare, Instagram } from 'lucide-react';
 import { useStore } from '../store';
 
 export function Header() {
@@ -29,6 +29,18 @@ export function Header() {
       <h1 className="text-lg font-bold gradient-text whitespace-nowrap sm:hidden">
         RSLM
       </h1>
+
+      <a
+        href="https://instagram.com/elisalien"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-pink-500/20 to-purple-500/20 border border-pink-500/30 hover:border-pink-400/60 text-pink-300 hover:text-pink-200 transition-all text-[11px] whitespace-nowrap"
+        title="Follow @elisalien on Instagram"
+      >
+        <Instagram size={13} />
+        <span className="hidden sm:inline">made with love by @elisalien</span>
+        <span className="sm:hidden">@elisalien</span>
+      </a>
 
       <div className="flex-1" />
 
