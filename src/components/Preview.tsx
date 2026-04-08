@@ -31,6 +31,7 @@ function buildOptions(s: any, animProgress?: number): GeneratorOptions {
     extraLogos: s.extraLogos || [],
     decorativeSettings: s.decorativeSettings || { enabled: [], density: 2, size: 100, opacity: 40, animated: false, animSpeed: 1, durationMs: 3000 },
     globalOverlay: s.globalOverlay,
+    overlaySettings: s.overlaySettings,
     sliceOverlays: s.sliceOverlays,
     brandName: s.brandName,
     animationPreset: s.animationPreset,
@@ -53,6 +54,7 @@ export function Preview() {
   const logo = useStore(s => s.logo);
   const logoSettings = useStore(s => s.logoSettings);
   const globalOverlay = useStore(s => s.globalOverlay);
+  const overlaySettings = useStore(s => s.overlaySettings);
   const sliceOverlays = useStore(s => s.sliceOverlays);
   const brandName = useStore(s => s.brandName);
   const outputResolution = useStore(s => s.outputResolution);
@@ -109,7 +111,7 @@ export function Preview() {
       renderFrame(undefined);
     }
   }, [setup, template, graphicPreset, gridSize, showLabels, showSafeZones, logo, logoSettings,
-      globalOverlay, sliceOverlays, brandName, outputResolution, customWidth, customHeight,
+      globalOverlay, overlaySettings, sliceOverlays, brandName, outputResolution, customWidth, customHeight,
       getDims, disabledSlices, animationPreset, videoPreset, animationSpeed, hasAnimation, renderFrame,
       decorativeSettings, extraLogos]);
 
@@ -191,7 +193,6 @@ export async function exportVideo() {
 
     const fps = 30;
     const totalFrames = Math.round((LOOP_DURATION_MS / 1000) * fps);
-    const frameInterval = 1000 / fps;
 
     // Single reusable canvas for the stream - avoids allocating new canvas per frame
     const streamCanvas = document.createElement('canvas');
@@ -199,8 +200,9 @@ export async function exportVideo() {
     streamCanvas.height = dims.height;
     const streamCtx = streamCanvas.getContext('2d', { alpha: false })!;
 
-    // captureStream with explicit fps for proper frame timing
-    const stream = streamCanvas.captureStream(fps);
+    // captureStream(0) = manual frame capture, decoupled from real-time
+    const stream = streamCanvas.captureStream(0);
+    const videoTrack = stream.getVideoTracks()[0];
 
     const mimeType = getSupportedMimeType();
     const recorderOptions: MediaRecorderOptions = {
@@ -233,28 +235,21 @@ export async function exportVideo() {
     // Request data periodically for smoother encoding
     mediaRecorder.start(200);
 
-    // Render frames one at a time directly into the stream canvas.
-    // No pre-rendering, no ImageBitmap storage - constant memory usage.
+    // Render all frames with same animationSpeed as preview.
+    // captureStream(0) + requestFrame() decouples from wall-clock time.
     for (let frame = 0; frame < totalFrames; frame++) {
-      const progress = frame / totalFrames;
+      const progress = (frame * s.animationSpeed / totalFrames) % 1;
       const options = buildOptions(s, progress);
 
-      // Render directly into stream canvas context (no intermediate canvas)
       renderCompositionInto(streamCtx, slices, dims.width, dims.height, options);
 
-      // Wait for the frame interval so MediaRecorder captures at the right rate.
-      // Use a combination of rAF + timer for reliability across browsers.
-      await new Promise<void>(resolve => {
-        const start = performance.now();
-        const check = () => {
-          if (performance.now() - start >= frameInterval) {
-            resolve();
-          } else {
-            requestAnimationFrame(check);
-          }
-        };
-        requestAnimationFrame(check);
-      });
+      // Manually push this frame into the MediaRecorder stream
+      if (videoTrack.requestFrame) {
+        videoTrack.requestFrame();
+      }
+
+      // Yield to browser to avoid blocking UI
+      await new Promise(r => setTimeout(r, 0));
     }
 
     // Ensure last frame is captured

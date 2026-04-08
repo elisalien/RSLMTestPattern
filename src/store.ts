@@ -7,6 +7,7 @@ import {
   ViewMode,
   OutputResolution,
   OverlaySource,
+  OverlaySettings,
   SliceOverlays,
   Preset,
   LogoSettings,
@@ -17,6 +18,7 @@ import {
   ExportFormat,
   DEFAULT_PRESET,
   DEFAULT_LOGO_SETTINGS,
+  DEFAULT_OVERLAY_SETTINGS,
   DEFAULT_DECORATIVE_SETTINGS,
   MAX_LOGO_INSTANCES,
   OUTPUT_RESOLUTIONS,
@@ -73,6 +75,7 @@ interface AppState {
   extraLogos: LogoInstance[];
   decorativeSettings: DecorativeSettings;
   globalOverlay: OverlaySource | null;
+  overlaySettings: OverlaySettings;
   sliceOverlays: SliceOverlays;
 
   // Slice management
@@ -110,6 +113,7 @@ interface AppState {
   updateLogoInstance: (id: string, settings: Partial<LogoSettings>) => void;
   setLogoInstanceImage: (id: string, img: HTMLImageElement | null) => void;
   setGlobalOverlay: (src: OverlaySource | null) => void;
+  setOverlaySettings: (s: Partial<OverlaySettings>) => void;
   setSliceOverlay: (sliceId: string, src: OverlaySource | null) => void;
   setShowLabels: (v: boolean) => void;
   setShowSafeZones: (v: boolean) => void;
@@ -162,6 +166,7 @@ export const useStore = create<AppState>((set, get) => ({
   extraLogos: initial.extraLogos || [],
   decorativeSettings: initial.decorativeSettings || DEFAULT_DECORATIVE_SETTINGS,
   globalOverlay: null,
+  overlaySettings: DEFAULT_OVERLAY_SETTINGS,
   sliceOverlays: {},
 
   // Slice management
@@ -312,6 +317,12 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   setGlobalOverlay: (src) => set({ globalOverlay: src }),
+
+  setOverlaySettings: (partial) => {
+    set((state) => ({
+      overlaySettings: { ...state.overlaySettings, ...partial },
+    }));
+  },
 
   setSliceOverlay: (sliceId, src) => {
     set((state) => ({

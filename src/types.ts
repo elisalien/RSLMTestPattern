@@ -175,7 +175,7 @@ export type LogoPosition =
 
 export interface LogoSettings {
   position: LogoPosition;
-  size: number;       // 1-100 (percentage of slice min dimension)
+  size: number;       // 1-200 (percentage of slice min dimension)
   opacity: number;    // 0-100
   rotation: number;   // degrees 0-360
   padding: number;    // pixels from edge
@@ -314,6 +314,20 @@ export type OverlaySource = HTMLImageElement | HTMLVideoElement;
 export interface SliceOverlays {
   [sliceId: string]: OverlaySource | null;
 }
+
+export interface OverlaySettings {
+  position: LogoPosition;
+  size: number;       // 1-200 (percentage of slice min dimension)
+  opacity: number;    // 0-100
+  blendMode: GlobalCompositeOperation;
+}
+
+export const DEFAULT_OVERLAY_SETTINGS: OverlaySettings = {
+  position: 'center',
+  size: 30,
+  opacity: 85,
+  blendMode: 'source-over',
+};
 
 // ─── Presets ─────────────────────────────────────────────────────
 
