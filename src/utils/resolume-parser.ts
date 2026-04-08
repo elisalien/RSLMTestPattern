@@ -74,17 +74,46 @@ export class ResolumeXMLParser {
 
     const sliceArray: any[] = Array.isArray(layers.Slice) ? layers.Slice : [layers.Slice];
 
-    // Calculate internal bounding box for scaling
-    let maxX = 0, maxY = 0;
+    // Determine coordinate space by inspecting vertices
+    // If max coord > 1.5, they're in pixel space; otherwise normalized 0-1
+    let outMaxX = 0, outMaxY = 0;
+    let inMaxX = 0, inMaxY = 0;
     sliceArray.forEach((slice: any) => {
       this.parseRect(slice.OutputRect).forEach(v => {
-        maxX = Math.max(maxX, v.x);
-        maxY = Math.max(maxY, v.y);
+        outMaxX = Math.max(outMaxX, v.x);
+        outMaxY = Math.max(outMaxY, v.y);
+      });
+      this.parseRect(slice.InputRect).forEach(v => {
+        inMaxX = Math.max(inMaxX, v.x);
+        inMaxY = Math.max(inMaxY, v.y);
       });
     });
 
-    const scaleX = maxX > 0 ? compositionSize.width / maxX : 1;
-    const scaleY = maxY > 0 ? compositionSize.height / maxY : 1;
+    // Output scale: if coords are normalized (0-1), scale to composition size
+    // If already in pixel space, use 1:1
+    let outScaleX: number, outScaleY: number;
+    if (outMaxX > 1.5 || outMaxY > 1.5) {
+      // Pixel coordinates - already in the right space, no scaling needed
+      outScaleX = 1;
+      outScaleY = 1;
+    } else {
+      // Normalized coordinates (0-1) - scale to composition size
+      outScaleX = compositionSize.width;
+      outScaleY = compositionSize.height;
+    }
+
+    // Input scale: same logic
+    let inScaleX: number, inScaleY: number;
+    if (inMaxX > 1.5 || inMaxY > 1.5) {
+      inScaleX = 1;
+      inScaleY = 1;
+    } else {
+      inScaleX = compositionSize.width;
+      inScaleY = compositionSize.height;
+    }
+
+    const scaleX = viewMode === 'input' ? inScaleX : outScaleX;
+    const scaleY = viewMode === 'input' ? inScaleY : outScaleY;
 
     return sliceArray
       .map((slice: any) => this.parseSlice(slice, viewMode, scaleX, scaleY))
