@@ -32,7 +32,7 @@ export class ResolumeXMLParser {
 
       // Parse all screens
       const screens: ScreenData[] = screenArray.map((screen: any, idx: number) => {
-        const compositionSize = this.resolveCompositionSize(screen, screenSetup);
+        const compositionSize = this.resolveCanvasSize(screen, screenSetup, viewMode);
         const slices = this.parseScreenSlices(screen, viewMode, compositionSize);
         const screenName = screen['@_name'] || screen.Params?.Param?.['@_value'] || `Screen ${idx + 1}`;
         return {
@@ -102,14 +102,13 @@ export class ResolumeXMLParser {
       }
     } else {
       // Input view: InputRect coords are in composition source space
-      // This space may differ from the output device size, so we scale
-      // proportionally to fill the compositionSize canvas
+      // Display at actual pixel positions to match Resolume's Input Selection view
       if (inMaxX > 1.5 || inMaxY > 1.5) {
-        // Pixel coords in source space - scale to fill canvas
-        scaleX = inMaxX > 0 ? compositionSize.width / inMaxX : 1;
-        scaleY = inMaxY > 0 ? compositionSize.height / inMaxY : 1;
+        // Pixel coords - use 1:1 mapping (same as output mode)
+        scaleX = 1;
+        scaleY = 1;
       } else {
-        // Normalized 0-1
+        // Normalized 0-1 - scale to composition size
         scaleX = compositionSize.width;
         scaleY = compositionSize.height;
       }
@@ -120,19 +119,43 @@ export class ResolumeXMLParser {
       .filter((slice): slice is SliceData => slice !== null);
   }
 
-  private resolveCompositionSize(
+  /**
+   * Resolve the canvas size based on viewMode:
+   * - Input mode: use CurrentCompositionTextureSize (source coordinate space)
+   * - Output mode: use output device dimensions (screen coordinate space)
+   */
+  private resolveCanvasSize(
     screen: any,
     screenSetup: any,
+    viewMode: ViewMode,
   ): { width: number; height: number } {
-    if (screen.OutputDevice?.OutputDeviceVirtual) {
-      const vo = screen.OutputDevice.OutputDeviceVirtual;
+    const compositionTextureSize = screenSetup.CurrentCompositionTextureSize
+      ? {
+          width: screenSetup.CurrentCompositionTextureSize['@_width'] || 1920,
+          height: screenSetup.CurrentCompositionTextureSize['@_height'] || 1080,
+        }
+      : null;
+
+    if (viewMode === 'input') {
+      // Input rects live in the composition source space
+      return compositionTextureSize || { width: 1920, height: 1080 };
+    }
+
+    // Output mode: use output device dimensions
+    const od = screen.OutputDevice;
+    if (od?.OutputDeviceVirtual) {
+      const vo = od.OutputDeviceVirtual;
       return { width: vo['@_width'] || 1920, height: vo['@_height'] || 1080 };
     }
-    if (screenSetup.CurrentCompositionTextureSize) {
-      const cs = screenSetup.CurrentCompositionTextureSize;
-      return { width: cs['@_width'] || 1920, height: cs['@_height'] || 1080 };
+    if (od?.OutputDeviceSpout) {
+      const sp = od.OutputDeviceSpout;
+      if (sp['@_width'] && sp['@_height']) {
+        return { width: sp['@_width'], height: sp['@_height'] };
+      }
     }
-    return { width: 1920, height: 1080 };
+
+    // Fallback to composition texture size
+    return compositionTextureSize || { width: 1920, height: 1080 };
   }
 
   private parseSlice(
