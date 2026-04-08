@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useStore } from '../store';
-import { generateComposition, GeneratorOptions } from '../utils/pattern-generator';
+import { generateComposition, renderCompositionInto, GeneratorOptions } from '../utils/pattern-generator';
 import { VIDEO_PRESETS, ANIMATION_PRESETS } from '../types';
 
 function getScaledSlices(setup: any, dims: any, outputResolution: any) {
@@ -29,7 +29,7 @@ function buildOptions(s: any, animProgress?: number): GeneratorOptions {
     logo: s.logo,
     logoSettings: s.logoSettings,
     extraLogos: s.extraLogos || [],
-    decorativeSettings: s.decorativeSettings || { enabled: [], density: 2, size: 100, opacity: 40, animated: false },
+    decorativeSettings: s.decorativeSettings || { enabled: [], density: 2, size: 100, opacity: 40, animated: false, animSpeed: 1, durationMs: 3000 },
     globalOverlay: s.globalOverlay,
     sliceOverlays: s.sliceOverlays,
     brandName: s.brandName,
@@ -77,13 +77,14 @@ export function Preview() {
 
     const options = buildOptions(useStore.getState(), progress);
 
-    // Direct canvas rendering - no toDataURL() overhead
-    const offscreen = generateComposition(slices, dims.width, dims.height, options);
     const canvas = canvasRef.current;
     if (canvas.width !== dims.width || canvas.height !== dims.height) {
       canvas.width = dims.width;
       canvas.height = dims.height;
     }
+
+    // Render directly into the visible canvas context
+    const offscreen = generateComposition(slices, dims.width, dims.height, options);
     const ctx = canvas.getContext('2d')!;
     ctx.clearRect(0, 0, dims.width, dims.height);
     ctx.drawImage(offscreen, 0, 0);
@@ -177,12 +178,7 @@ function getSupportedMimeType(): string {
   for (const mime of candidates) {
     if (MediaRecorder.isTypeSupported(mime)) return mime;
   }
-  return ''; // let browser pick default
-}
-
-/** Wait for next animation frame (used for reliable frame pacing in video export) */
-function waitFrame(): Promise<number> {
-  return new Promise(resolve => requestAnimationFrame(resolve));
+  return '';
 }
 
 /** Export composition as looping video (WebM) */
@@ -204,30 +200,16 @@ export async function exportVideo() {
     const duration = Math.max(vpInfo?.durationMs || 2000, apInfo?.durationMs || 2000, decoMs);
     const fps = vpInfo?.fps || 30;
     const totalFrames = Math.round((duration / 1000) * fps);
+    const frameInterval = 1000 / fps;
 
-    // Phase 1: Pre-render all frames to ImageBitmap array
-    // This eliminates timing issues entirely - no real-time rendering pressure
-    const frameBitmaps: ImageBitmap[] = [];
-    for (let frame = 0; frame < totalFrames; frame++) {
-      const progress = frame / totalFrames;
-      const options = buildOptions(s, progress);
-      const frameCanvas = generateComposition(slices, dims.width, dims.height, options);
-      const bitmap = await createImageBitmap(frameCanvas);
-      frameBitmaps.push(bitmap);
+    // Single reusable canvas for the stream - avoids allocating new canvas per frame
+    const streamCanvas = document.createElement('canvas');
+    streamCanvas.width = dims.width;
+    streamCanvas.height = dims.height;
+    const streamCtx = streamCanvas.getContext('2d', { alpha: false })!;
 
-      // Yield every 5 frames to keep UI responsive
-      if (frame % 5 === 0) await waitFrame();
-    }
-
-    // Phase 2: Play pre-rendered frames into MediaRecorder at exact timing
-    const recordCanvas = document.createElement('canvas');
-    recordCanvas.width = dims.width;
-    recordCanvas.height = dims.height;
-    const recordCtx = recordCanvas.getContext('2d')!;
-
-    // Use captureStream(0) for manual frame control
-    const stream = recordCanvas.captureStream(0);
-    const videoTrack = stream.getVideoTracks()[0] as any;
+    // captureStream with explicit fps for proper frame timing
+    const stream = streamCanvas.captureStream(fps);
 
     const mimeType = getSupportedMimeType();
     const recorderOptions: MediaRecorderOptions = {
@@ -258,27 +240,37 @@ export async function exportVideo() {
       };
     });
 
-    mediaRecorder.start();
+    // Request data periodically for smoother encoding
+    mediaRecorder.start(200);
 
-    // Paint each pre-rendered frame and request a capture
+    // Render frames one at a time directly into the stream canvas.
+    // No pre-rendering, no ImageBitmap storage - constant memory usage.
     for (let frame = 0; frame < totalFrames; frame++) {
-      recordCtx.clearRect(0, 0, dims.width, dims.height);
-      recordCtx.drawImage(frameBitmaps[frame], 0, 0);
+      const progress = frame / totalFrames;
+      const options = buildOptions(s, progress);
 
-      // Request frame capture on the video track if supported (Chrome)
-      if (videoTrack && typeof videoTrack.requestFrame === 'function') {
-        videoTrack.requestFrame();
-      }
+      // Render directly into stream canvas context (no intermediate canvas)
+      renderCompositionInto(streamCtx, slices, dims.width, dims.height, options);
 
-      // Wait for next vsync to ensure the frame is composited
-      await waitFrame();
+      // Wait for the frame interval so MediaRecorder captures at the right rate.
+      // Use a combination of rAF + timer for reliability across browsers.
+      await new Promise<void>(resolve => {
+        const start = performance.now();
+        const check = () => {
+          if (performance.now() - start >= frameInterval) {
+            resolve();
+          } else {
+            requestAnimationFrame(check);
+          }
+        };
+        requestAnimationFrame(check);
+      });
     }
 
+    // Ensure last frame is captured
+    await new Promise(r => setTimeout(r, 100));
     mediaRecorder.stop();
     await exportPromise;
-
-    // Cleanup bitmaps
-    frameBitmaps.forEach(b => b.close());
 
   } catch (err) {
     console.error('Video export failed:', err);
