@@ -143,13 +143,13 @@ export function generateComposition(
     const overlay = options.sliceOverlays[slice.id] || options.globalOverlay;
     if (overlay) drawOverlay(ctx, slice, overlay);
 
-    // Logo with positioning (main + duplicates)
+    // Logo with positioning (main + extra instances)
     if (options.logo) {
       drawLogo(ctx, slice, options.logo, options.logoSettings, options.animationPreset, options.animationProgress);
-      // Draw extra logo instances
-      for (const extra of options.extraLogos) {
-        drawLogo(ctx, slice, options.logo, extra.settings, options.animationPreset, options.animationProgress);
-      }
+    }
+    for (const extra of options.extraLogos) {
+      const img = extra.image || options.logo;
+      if (img) drawLogo(ctx, slice, img, extra.settings, options.animationPreset, options.animationProgress);
     }
 
     // Labels

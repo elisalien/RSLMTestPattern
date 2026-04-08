@@ -164,6 +164,20 @@ export function exportComposition() {
   });
 }
 
+/** Detect the best supported mimeType for MediaRecorder */
+function getSupportedMimeType(): string {
+  const candidates = [
+    'video/webm;codecs=vp9',
+    'video/webm;codecs=vp8',
+    'video/webm;codecs=vp8,opus',
+    'video/webm',
+  ];
+  for (const mime of candidates) {
+    if (MediaRecorder.isTypeSupported(mime)) return mime;
+  }
+  return ''; // let browser pick default
+}
+
 /** Export composition as looping video (WebM) */
 export async function exportVideo() {
   const s = useStore.getState();
@@ -183,16 +197,20 @@ export async function exportVideo() {
     const fps = vpInfo?.fps || 30;
     const totalFrames = Math.round((duration / 1000) * fps);
 
-    // Use OffscreenCanvas or regular canvas for recording
     const recordCanvas = document.createElement('canvas');
     recordCanvas.width = dims.width;
     recordCanvas.height = dims.height;
 
     const stream = recordCanvas.captureStream(fps);
-    const mediaRecorder = new MediaRecorder(stream, {
-      mimeType: 'video/webm;codecs=vp9',
+
+    const mimeType = getSupportedMimeType();
+    const recorderOptions: MediaRecorderOptions = {
       videoBitsPerSecond: 8000000,
-    });
+    };
+    if (mimeType) recorderOptions.mimeType = mimeType;
+
+    const mediaRecorder = new MediaRecorder(stream, recorderOptions);
+    const actualMime = mediaRecorder.mimeType || 'video/webm';
 
     const chunks: Blob[] = [];
     mediaRecorder.ondataavailable = (e) => {
@@ -201,12 +219,13 @@ export async function exportVideo() {
 
     const exportPromise = new Promise<void>((resolve) => {
       mediaRecorder.onstop = () => {
-        const blob = new Blob(chunks, { type: 'video/webm' });
+        const blob = new Blob(chunks, { type: actualMime });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
         const label = s.viewMode === 'output' ? 'Output' : 'Input';
-        a.download = `${s.brandName || setup.name}_${s.template}_${label}_${dims.width}x${dims.height}_loop.webm`;
+        const ext = actualMime.includes('mp4') ? 'mp4' : 'webm';
+        a.download = `${s.brandName || setup.name}_${s.template}_${label}_${dims.width}x${dims.height}_loop.${ext}`;
         a.click();
         URL.revokeObjectURL(url);
         resolve();
@@ -232,7 +251,7 @@ export async function exportVideo() {
     await exportPromise;
   } catch (err) {
     console.error('Video export failed:', err);
-    alert('Video export failed. Your browser may not support WebM recording.');
+    alert('Video export failed. Your browser may not support WebM recording.\nTry using Chrome or Edge for best compatibility.');
   } finally {
     s.setIsExporting(false);
   }
