@@ -1,13 +1,20 @@
 import { create } from 'zustand';
 import {
   ResolumeSetup,
+  ScreenData,
   TemplateType,
+  GraphicPresetType,
   ViewMode,
   OutputResolution,
   OverlaySource,
   SliceOverlays,
   Preset,
+  LogoSettings,
+  AnimationPresetType,
+  VideoPresetType,
+  ExportFormat,
   DEFAULT_PRESET,
+  DEFAULT_LOGO_SETTINGS,
   OUTPUT_RESOLUTIONS,
 } from './types';
 import { ResolumeXMLParser } from './utils/resolume-parser';
@@ -40,8 +47,13 @@ interface AppState {
   resolumeSetup: ResolumeSetup | null;
   rawXML: string | null;
 
+  // Screen navigation
+  screens: ScreenData[];
+  activeScreenIndex: number;
+
   // Settings
   template: TemplateType;
+  graphicPreset: GraphicPresetType;
   gridSize: number;
   viewMode: ViewMode;
   outputResolution: OutputResolution;
@@ -53,8 +65,18 @@ interface AppState {
   // Branding & overlays
   brandName: string;
   logo: HTMLImageElement | null;
+  logoSettings: LogoSettings;
   globalOverlay: OverlaySource | null;
   sliceOverlays: SliceOverlays;
+
+  // Slice management
+  disabledSlices: Set<string>;
+
+  // Animation
+  animationPreset: AnimationPresetType;
+  videoPreset: VideoPresetType;
+  exportFormat: ExportFormat;
+  animationSpeed: number; // multiplier 0.25-4
 
   // Presets
   savedPresets: Preset[];
@@ -62,10 +84,12 @@ interface AppState {
   // UI
   isLoading: boolean;
   sidebarOpen: boolean;
+  isExporting: boolean;
 
   // Actions
   importXML: (xmlString: string) => void;
   setTemplate: (t: TemplateType) => void;
+  setGraphicPreset: (p: GraphicPresetType) => void;
   setGridSize: (s: number) => void;
   setViewMode: (m: ViewMode) => void;
   setOutputResolution: (r: OutputResolution) => void;
@@ -73,17 +97,28 @@ interface AppState {
   setCustomHeight: (h: number) => void;
   setBrandName: (n: string) => void;
   setLogo: (img: HTMLImageElement | null) => void;
+  setLogoSettings: (s: Partial<LogoSettings>) => void;
   setGlobalOverlay: (src: OverlaySource | null) => void;
   setSliceOverlay: (sliceId: string, src: OverlaySource | null) => void;
   setShowLabels: (v: boolean) => void;
   setShowSafeZones: (v: boolean) => void;
   toggleSidebar: () => void;
+  setActiveScreen: (index: number) => void;
+  toggleSlice: (sliceId: string) => void;
+  enableAllSlices: () => void;
+  disableAllSlices: () => void;
+  setAnimationPreset: (p: AnimationPresetType) => void;
+  setVideoPreset: (p: VideoPresetType) => void;
+  setExportFormat: (f: ExportFormat) => void;
+  setAnimationSpeed: (s: number) => void;
+  setIsExporting: (v: boolean) => void;
   savePreset: (name: string) => void;
   loadPreset: (preset: Preset) => void;
   deletePreset: (name: string) => void;
   importPresets: (json: string) => void;
   exportPresets: () => string;
   getOutputDimensions: () => { width: number; height: number };
+  getActiveSlices: () => import('./types').SliceData[];
 }
 
 const saved = loadSettings();
@@ -94,8 +129,13 @@ export const useStore = create<AppState>((set, get) => ({
   resolumeSetup: null,
   rawXML: null,
 
+  // Screen navigation
+  screens: [],
+  activeScreenIndex: 0,
+
   // Settings (restored from localStorage)
   template: initial.template,
+  graphicPreset: initial.graphicPreset || 'default',
   gridSize: initial.gridSize,
   viewMode: initial.viewMode,
   outputResolution: OUTPUT_RESOLUTIONS.find(r => r.id === initial.resolution) || OUTPUT_RESOLUTIONS[0],
@@ -107,8 +147,18 @@ export const useStore = create<AppState>((set, get) => ({
   // Branding
   brandName: initial.brandName,
   logo: null,
+  logoSettings: initial.logoSettings || DEFAULT_LOGO_SETTINGS,
   globalOverlay: null,
   sliceOverlays: {},
+
+  // Slice management
+  disabledSlices: new Set(),
+
+  // Animation
+  animationPreset: 'none',
+  videoPreset: 'none',
+  exportFormat: 'png',
+  animationSpeed: 1,
 
   // Presets
   savedPresets: (() => {
@@ -121,6 +171,7 @@ export const useStore = create<AppState>((set, get) => ({
   // UI
   isLoading: false,
   sidebarOpen: true,
+  isExporting: false,
 
   // ─── Actions ─────────────────────────────────────────────────
 
@@ -131,13 +182,21 @@ export const useStore = create<AppState>((set, get) => ({
     set({
       rawXML: xmlString,
       resolumeSetup: setup,
+      screens: setup?.screens || [],
+      activeScreenIndex: 0,
       isLoading: false,
       sliceOverlays: {},
+      disabledSlices: new Set(),
     });
   },
 
   setTemplate: (t) => {
     set({ template: t });
+    persistSettings(get());
+  },
+
+  setGraphicPreset: (p) => {
+    set({ graphicPreset: p });
     persistSettings(get());
   },
 
@@ -150,7 +209,12 @@ export const useStore = create<AppState>((set, get) => ({
     const { rawXML } = get();
     if (rawXML) {
       const setup = parser.parse(rawXML, m);
-      set({ viewMode: m, resolumeSetup: setup });
+      set({
+        viewMode: m,
+        resolumeSetup: setup,
+        screens: setup?.screens || [],
+        activeScreenIndex: 0,
+      });
     } else {
       set({ viewMode: m });
     }
@@ -178,6 +242,14 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   setLogo: (img) => set({ logo: img }),
+
+  setLogoSettings: (partial) => {
+    set((state) => ({
+      logoSettings: { ...state.logoSettings, ...partial },
+    }));
+    persistSettings(get());
+  },
+
   setGlobalOverlay: (src) => set({ globalOverlay: src }),
 
   setSliceOverlay: (sliceId, src) => {
@@ -198,6 +270,50 @@ export const useStore = create<AppState>((set, get) => ({
 
   toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
 
+  setActiveScreen: (index: number) => {
+    const { screens, rawXML, viewMode } = get();
+    if (index < 0 || index >= screens.length) return;
+    const screen = screens[index];
+    // Update resolumeSetup with this screen's slices
+    const currentSetup = get().resolumeSetup;
+    if (currentSetup) {
+      set({
+        activeScreenIndex: index,
+        resolumeSetup: {
+          ...currentSetup,
+          slices: screen.slices,
+          compositionSize: screen.compositionSize,
+        },
+      });
+    }
+  },
+
+  toggleSlice: (sliceId: string) => {
+    set((state) => {
+      const next = new Set(state.disabledSlices);
+      if (next.has(sliceId)) {
+        next.delete(sliceId);
+      } else {
+        next.add(sliceId);
+      }
+      return { disabledSlices: next };
+    });
+  },
+
+  enableAllSlices: () => set({ disabledSlices: new Set() }),
+
+  disableAllSlices: () => {
+    const { resolumeSetup } = get();
+    if (!resolumeSetup) return;
+    set({ disabledSlices: new Set(resolumeSetup.slices.map(s => s.id)) });
+  },
+
+  setAnimationPreset: (p) => set({ animationPreset: p }),
+  setVideoPreset: (p) => set({ videoPreset: p }),
+  setExportFormat: (f) => set({ exportFormat: f }),
+  setAnimationSpeed: (s) => set({ animationSpeed: s }),
+  setIsExporting: (v) => set({ isExporting: v }),
+
   // ─── Presets ─────────────────────────────────────────────────
 
   savePreset: (name: string) => {
@@ -213,6 +329,8 @@ export const useStore = create<AppState>((set, get) => ({
       brandName: s.brandName,
       showLabels: s.showLabels,
       showSafeZones: s.showSafeZones,
+      graphicPreset: s.graphicPreset,
+      logoSettings: s.logoSettings,
     };
     const presets = [...s.savedPresets.filter(p => p.name !== name), preset];
     set({ savedPresets: presets });
@@ -231,12 +349,14 @@ export const useStore = create<AppState>((set, get) => ({
       brandName: preset.brandName,
       showLabels: preset.showLabels,
       showSafeZones: preset.showSafeZones,
+      graphicPreset: preset.graphicPreset || 'default',
+      logoSettings: preset.logoSettings || DEFAULT_LOGO_SETTINGS,
     });
     // Re-parse XML with new view mode
     const { rawXML } = get();
     if (rawXML) {
       const setup = parser.parse(rawXML, preset.viewMode);
-      set({ resolumeSetup: setup });
+      set({ resolumeSetup: setup, screens: setup?.screens || [] });
     }
     persistSettings(get());
   },
@@ -278,6 +398,12 @@ export const useStore = create<AppState>((set, get) => ({
     if (outputResolution.id === 'custom') return { width: customWidth, height: customHeight };
     return { width: outputResolution.width, height: outputResolution.height };
   },
+
+  getActiveSlices: () => {
+    const { resolumeSetup, disabledSlices } = get();
+    if (!resolumeSetup) return [];
+    return resolumeSetup.slices.filter(s => !disabledSlices.has(s.id));
+  },
 }));
 
 function persistSettings(s: AppState) {
@@ -292,5 +418,7 @@ function persistSettings(s: AppState) {
     brandName: s.brandName,
     showLabels: s.showLabels,
     showSafeZones: s.showSafeZones,
+    graphicPreset: s.graphicPreset,
+    logoSettings: s.logoSettings,
   });
 }

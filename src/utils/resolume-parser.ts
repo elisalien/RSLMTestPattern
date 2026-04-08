@@ -1,5 +1,5 @@
 import { XMLParser } from 'fast-xml-parser';
-import { ResolumeSetup, SliceData, ViewMode, Point } from '../types';
+import { ResolumeSetup, ScreenData, SliceData, ViewMode, Point } from '../types';
 
 export class ResolumeXMLParser {
   private parser: XMLParser;
@@ -23,43 +23,72 @@ export class ResolumeXMLParser {
       const screenSetup = xmlState.ScreenSetup;
       if (!screenSetup) throw new Error('Missing ScreenSetup element');
 
-      const screens = screenSetup.screens;
-      if (!screens?.Screen) throw new Error('Missing Screen elements');
+      const screensNode = screenSetup.screens;
+      if (!screensNode?.Screen) throw new Error('Missing Screen elements');
 
-      const screen = Array.isArray(screens.Screen) ? screens.Screen[0] : screens.Screen;
+      const screenArray = Array.isArray(screensNode.Screen)
+        ? screensNode.Screen
+        : [screensNode.Screen];
 
-      // Resolve composition size
-      const compositionSize = this.resolveCompositionSize(screen, screenSetup);
-
-      // Parse slices
-      const layers = screen.layers;
-      if (!layers?.Slice) {
-        return this.buildSetup(xmlState, versionInfo, compositionSize, []);
-      }
-
-      const sliceArray: any[] = Array.isArray(layers.Slice) ? layers.Slice : [layers.Slice];
-
-      // Calculate internal bounding box for scaling
-      let maxX = 0, maxY = 0;
-      sliceArray.forEach((slice: any) => {
-        this.parseRect(slice.OutputRect).forEach(v => {
-          maxX = Math.max(maxX, v.x);
-          maxY = Math.max(maxY, v.y);
-        });
+      // Parse all screens
+      const screens: ScreenData[] = screenArray.map((screen: any, idx: number) => {
+        const compositionSize = this.resolveCompositionSize(screen, screenSetup);
+        const slices = this.parseScreenSlices(screen, viewMode, compositionSize);
+        const screenName = screen['@_name'] || screen.Params?.Param?.['@_value'] || `Screen ${idx + 1}`;
+        return {
+          id: screen['@_uniqueId']?.toString() || `screen_${idx}`,
+          name: typeof screenName === 'string' ? screenName : `Screen ${idx + 1}`,
+          slices,
+          compositionSize,
+        };
       });
 
-      const scaleX = maxX > 0 ? compositionSize.width / maxX : 1;
-      const scaleY = maxY > 0 ? compositionSize.height / maxY : 1;
+      // Use first screen as default active
+      const activeScreen = screens[0];
 
-      const slices = sliceArray
-        .map((slice: any) => this.parseSlice(slice, viewMode, scaleX, scaleY))
-        .filter((slice): slice is SliceData => slice !== null);
-
-      return this.buildSetup(xmlState, versionInfo, compositionSize, slices);
+      return {
+        name: xmlState['@_name'] || 'Resolume Setup',
+        version: {
+          name: versionInfo?.['@_name'] || 'Resolume Arena',
+          major: versionInfo?.['@_majorVersion'] || 7,
+          minor: versionInfo?.['@_minorVersion'] || 0,
+          micro: versionInfo?.['@_microVersion'] || 0,
+        },
+        compositionSize: activeScreen?.compositionSize || { width: 1920, height: 1080 },
+        slices: activeScreen?.slices || [],
+        screens,
+      };
     } catch (error) {
       console.error('Error parsing Resolume XML:', error);
       return null;
     }
+  }
+
+  private parseScreenSlices(
+    screen: any,
+    viewMode: ViewMode,
+    compositionSize: { width: number; height: number },
+  ): SliceData[] {
+    const layers = screen.layers;
+    if (!layers?.Slice) return [];
+
+    const sliceArray: any[] = Array.isArray(layers.Slice) ? layers.Slice : [layers.Slice];
+
+    // Calculate internal bounding box for scaling
+    let maxX = 0, maxY = 0;
+    sliceArray.forEach((slice: any) => {
+      this.parseRect(slice.OutputRect).forEach(v => {
+        maxX = Math.max(maxX, v.x);
+        maxY = Math.max(maxY, v.y);
+      });
+    });
+
+    const scaleX = maxX > 0 ? compositionSize.width / maxX : 1;
+    const scaleY = maxY > 0 ? compositionSize.height / maxY : 1;
+
+    return sliceArray
+      .map((slice: any) => this.parseSlice(slice, viewMode, scaleX, scaleY))
+      .filter((slice): slice is SliceData => slice !== null);
   }
 
   private resolveCompositionSize(
@@ -75,25 +104,6 @@ export class ResolumeXMLParser {
       return { width: cs['@_width'] || 1920, height: cs['@_height'] || 1080 };
     }
     return { width: 1920, height: 1080 };
-  }
-
-  private buildSetup(
-    xmlState: any,
-    versionInfo: any,
-    compositionSize: { width: number; height: number },
-    slices: SliceData[],
-  ): ResolumeSetup {
-    return {
-      name: xmlState['@_name'] || 'Resolume Setup',
-      version: {
-        name: versionInfo?.['@_name'] || 'Resolume Arena',
-        major: versionInfo?.['@_majorVersion'] || 7,
-        minor: versionInfo?.['@_minorVersion'] || 0,
-        micro: versionInfo?.['@_microVersion'] || 0,
-      },
-      compositionSize,
-      slices,
-    };
   }
 
   private parseSlice(
