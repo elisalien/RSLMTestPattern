@@ -790,6 +790,30 @@ function DecorativeElementsSection() {
             />
             <span className="text-[10px] text-gray-400">Animate (floating)</span>
           </label>
+
+          {decorativeSettings.animated && (
+            <>
+              {/* Animation Speed */}
+              <div>
+                <label className="text-[10px] text-gray-500 flex justify-between">
+                  <span>Anim Speed</span><span>{decorativeSettings.animSpeed || 1}x</span>
+                </label>
+                <input type="range" min={25} max={400} step={25} value={(decorativeSettings.animSpeed || 1) * 100}
+                  onChange={e => setDecorativeSettings({ animSpeed: parseInt(e.target.value) / 100 })}
+                  className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-pink-500" />
+              </div>
+
+              {/* Loop Duration */}
+              <div>
+                <label className="text-[10px] text-gray-500 flex justify-between">
+                  <span>Loop Duration</span><span>{((decorativeSettings.durationMs || 3000) / 1000).toFixed(1)}s</span>
+                </label>
+                <input type="range" min={1000} max={10000} step={500} value={decorativeSettings.durationMs || 3000}
+                  onChange={e => setDecorativeSettings({ durationMs: parseInt(e.target.value) })}
+                  className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-pink-500" />
+              </div>
+            </>
+          )}
         </div>
       )}
     </Section>
