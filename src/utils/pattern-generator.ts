@@ -46,6 +46,21 @@ function getCachedNoiseCanvas(w: number, h: number): HTMLCanvasElement {
   return _noiseCanvas;
 }
 
+// Cached CRT scanline pattern (avoids hundreds of fillRect calls per slice)
+let _scanlinePattern: CanvasPattern | null = null;
+
+function getCachedScanlinePattern(ctx: CanvasRenderingContext2D): CanvasPattern {
+  if (_scanlinePattern) return _scanlinePattern;
+  const patCanvas = document.createElement('canvas');
+  patCanvas.width = 1;
+  patCanvas.height = 3;
+  const patCtx = patCanvas.getContext('2d')!;
+  patCtx.fillStyle = 'rgba(0,0,0,0.15)';
+  patCtx.fillRect(0, 0, 1, 1);
+  _scanlinePattern = ctx.createPattern(patCanvas, 'repeat')!;
+  return _scanlinePattern;
+}
+
 // Seeded random for deterministic decorative element placement
 function seededRandom(seed: number): () => number {
   let s = seed;
@@ -89,16 +104,41 @@ export interface GeneratorOptions {
   animationProgress?: number; // 0-1 normalized progress for animation frame
 }
 
+// Reusable canvas pool to avoid GC pressure during animation/export
+let _reusableCanvas: HTMLCanvasElement | null = null;
+let _reusableDims = { w: 0, h: 0 };
+
+function getReusableCanvas(w: number, h: number): HTMLCanvasElement {
+  if (_reusableCanvas && _reusableDims.w === w && _reusableDims.h === h) {
+    return _reusableCanvas;
+  }
+  _reusableCanvas = document.createElement('canvas');
+  _reusableCanvas.width = w;
+  _reusableCanvas.height = h;
+  _reusableDims = { w, h };
+  return _reusableCanvas;
+}
+
 export function generateComposition(
   slices: SliceData[],
   width: number,
   height: number,
   options: GeneratorOptions,
 ): HTMLCanvasElement {
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
+  const canvas = getReusableCanvas(width, height);
   const ctx = canvas.getContext('2d')!;
+  renderCompositionInto(ctx, slices, width, height, options);
+  return canvas;
+}
+
+/** Render composition directly into a provided context (for video export) */
+export function renderCompositionInto(
+  ctx: CanvasRenderingContext2D,
+  slices: SliceData[],
+  width: number,
+  height: number,
+  options: GeneratorOptions,
+): void {
 
   // Background based on graphic preset
   ctx.fillStyle = getPresetBackground(options.graphicPreset);
@@ -155,8 +195,6 @@ export function generateComposition(
     // Labels
     if (options.showLabels) drawLabels(ctx, slice, options.brandName, options.graphicPreset);
   });
-
-  return canvas;
 }
 
 function getPresetBackground(preset: GraphicPresetType): string {
@@ -202,11 +240,9 @@ function drawPresetOverlayEffects(ctx: CanvasRenderingContext2D, slice: SliceDat
   const preset = options.graphicPreset;
 
   if (preset === 'retro-ps1') {
-    // CRT scanlines
-    ctx.fillStyle = 'rgba(0,0,0,0.15)';
-    for (let sy = 0; sy < height; sy += 3) {
-      ctx.fillRect(x, y + sy, width, 1);
-    }
+    // CRT scanlines - use a small tiled pattern instead of per-line drawing
+    ctx.fillStyle = getCachedScanlinePattern(ctx);
+    ctx.fillRect(x, y, width, height);
     // Slight vignette
     const vignette = ctx.createRadialGradient(
       x + width / 2, y + height / 2, Math.min(width, height) * 0.3,

@@ -74,8 +74,7 @@ export class ResolumeXMLParser {
 
     const sliceArray: any[] = Array.isArray(layers.Slice) ? layers.Slice : [layers.Slice];
 
-    // Determine coordinate space by inspecting vertices
-    // If max coord > 1.5, they're in pixel space; otherwise normalized 0-1
+    // Scan both rect types to understand coordinate spaces
     let outMaxX = 0, outMaxY = 0;
     let inMaxX = 0, inMaxY = 0;
     sliceArray.forEach((slice: any) => {
@@ -89,32 +88,32 @@ export class ResolumeXMLParser {
       });
     });
 
-    // Output scale: if coords are normalized (0-1), scale to composition size
-    // If already in pixel space, use 1:1
-    let outScaleX: number, outScaleY: number;
-    if (outMaxX > 1.5 || outMaxY > 1.5) {
-      // Pixel coordinates - already in the right space, no scaling needed
-      outScaleX = 1;
-      outScaleY = 1;
-    } else {
-      // Normalized coordinates (0-1) - scale to composition size
-      outScaleX = compositionSize.width;
-      outScaleY = compositionSize.height;
-    }
+    let scaleX: number, scaleY: number;
 
-    // Input scale: same logic
-    let inScaleX: number, inScaleY: number;
-    if (inMaxX > 1.5 || inMaxY > 1.5) {
-      inScaleX = 1;
-      inScaleY = 1;
+    if (viewMode === 'output') {
+      // Output view: OutputRect coords are in output device space
+      // If normalized (0-1), scale to compositionSize; if pixel, use 1:1
+      if (outMaxX > 1.5 || outMaxY > 1.5) {
+        scaleX = 1;
+        scaleY = 1;
+      } else {
+        scaleX = compositionSize.width;
+        scaleY = compositionSize.height;
+      }
     } else {
-      inScaleX = compositionSize.width;
-      inScaleY = compositionSize.height;
+      // Input view: InputRect coords are in composition source space
+      // This space may differ from the output device size, so we scale
+      // proportionally to fill the compositionSize canvas
+      if (inMaxX > 1.5 || inMaxY > 1.5) {
+        // Pixel coords in source space - scale to fill canvas
+        scaleX = inMaxX > 0 ? compositionSize.width / inMaxX : 1;
+        scaleY = inMaxY > 0 ? compositionSize.height / inMaxY : 1;
+      } else {
+        // Normalized 0-1
+        scaleX = compositionSize.width;
+        scaleY = compositionSize.height;
+      }
     }
-
-    // Swapped: output view uses InputRect scale, input view uses OutputRect scale
-    const scaleX = viewMode === 'input' ? outScaleX : inScaleX;
-    const scaleY = viewMode === 'input' ? outScaleY : inScaleY;
 
     return sliceArray
       .map((slice: any) => this.parseSlice(slice, viewMode, scaleX, scaleY))
@@ -149,9 +148,9 @@ export class ResolumeXMLParser {
 
       const outputRect = this.parseRect(slice.OutputRect);
       const inputRect = this.parseRect(slice.InputRect);
-      // In Resolume XML: InputRect = screen coordinates (Advanced Output view)
-      //                  OutputRect = composition coordinates (Advanced Input view)
-      const activeRect = viewMode === 'input' ? outputRect : inputRect;
+      // In Resolume XML: OutputRect = screen coordinates (Advanced Output)
+      //                  InputRect = composition source coordinates (Advanced Input)
+      const activeRect = viewMode === 'input' ? inputRect : outputRect;
 
       if (activeRect.length < 4) return null;
 
