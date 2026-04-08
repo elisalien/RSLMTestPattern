@@ -1,4 +1,5 @@
-import { TemplateType, GraphicPresetType, SliceData, OverlaySource, SliceOverlays, LogoSettings, AnimationPresetType, VideoPresetType } from '../types';
+import { TemplateType, GraphicPresetType, SliceData, OverlaySource, SliceOverlays, LogoSettings, LogoInstance, DecorativeSettings, AnimationPresetType, VideoPresetType } from '../types';
+import type { DecorativeElementType } from '../types';
 
 // ─── SMPTE Color Constants ──────────────────────────────────────
 
@@ -19,6 +20,40 @@ const FRUTIGER_GREEN = ['#52B788', '#74C69D', '#95D5B2', '#B7E4C7', '#D8F3DC'];
 // ─── PS1 Retro Colors ──────────────────────────────────────────
 
 const PS1_COLORS = ['#808080', '#C0C0C0', '#404040', '#008080', '#800080', '#808000'];
+
+// ─── Performance Cache ────────────────────────────────────────
+
+let _noiseCanvas: HTMLCanvasElement | null = null;
+let _noiseDims = { w: 0, h: 0 };
+
+function getCachedNoiseCanvas(w: number, h: number): HTMLCanvasElement {
+  if (_noiseCanvas && _noiseDims.w === w && _noiseDims.h === h) return _noiseCanvas;
+  _noiseCanvas = document.createElement('canvas');
+  _noiseCanvas.width = w;
+  _noiseCanvas.height = h;
+  const ctx = _noiseCanvas.getContext('2d')!;
+  const imgData = ctx.createImageData(w, h);
+  const data = imgData.data;
+  for (let i = 0; i < data.length; i += 4) {
+    const noise = Math.random() * 8;
+    data[i] = noise;
+    data[i + 1] = noise;
+    data[i + 2] = noise;
+    data[i + 3] = 255;
+  }
+  ctx.putImageData(imgData, 0, 0);
+  _noiseDims = { w, h };
+  return _noiseCanvas;
+}
+
+// Seeded random for deterministic decorative element placement
+function seededRandom(seed: number): () => number {
+  let s = seed;
+  return () => {
+    s = (s * 16807 + 0) % 2147483647;
+    return (s - 1) / 2147483646;
+  };
+}
 
 // ─── Slice Color Palette ───────────────────────────────────────
 
@@ -44,6 +79,8 @@ export interface GeneratorOptions {
   showSafeZones: boolean;
   logo: HTMLImageElement | null;
   logoSettings: LogoSettings;
+  extraLogos: LogoInstance[];
+  decorativeSettings: DecorativeSettings;
   globalOverlay: OverlaySource | null;
   sliceOverlays: SliceOverlays;
   brandName: string;
@@ -92,6 +129,11 @@ export function generateComposition(
       drawVideoPresetFrame(ctx, slice, options.videoPreset, options.animationProgress);
     }
 
+    // Decorative elements (inside clip)
+    if (options.decorativeSettings.enabled.length > 0) {
+      drawDecorativeElements(ctx, slice, options.decorativeSettings, options.graphicPreset, options.animationProgress);
+    }
+
     ctx.restore();
 
     // Border
@@ -101,8 +143,14 @@ export function generateComposition(
     const overlay = options.sliceOverlays[slice.id] || options.globalOverlay;
     if (overlay) drawOverlay(ctx, slice, overlay);
 
-    // Logo with positioning
-    if (options.logo) drawLogo(ctx, slice, options.logo, options.logoSettings, options.animationPreset, options.animationProgress);
+    // Logo with positioning (main + duplicates)
+    if (options.logo) {
+      drawLogo(ctx, slice, options.logo, options.logoSettings, options.animationPreset, options.animationProgress);
+      // Draw extra logo instances
+      for (const extra of options.extraLogos) {
+        drawLogo(ctx, slice, options.logo, extra.settings, options.animationPreset, options.animationProgress);
+      }
+    }
 
     // Labels
     if (options.showLabels) drawLabels(ctx, slice, options.brandName, options.graphicPreset);
@@ -141,17 +189,9 @@ function drawPresetBackground(ctx: CanvasRenderingContext2D, w: number, h: numbe
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, w, h);
   } else if (preset === 'retro-ps1') {
-    // Dark dithered background - subtle noise pattern
-    const imgData = ctx.getImageData(0, 0, w, h);
-    const data = imgData.data;
-    for (let i = 0; i < data.length; i += 4) {
-      const noise = Math.random() * 8;
-      data[i] = noise;
-      data[i + 1] = noise;
-      data[i + 2] = noise;
-      data[i + 3] = 255;
-    }
-    ctx.putImageData(imgData, 0, 0);
+    // Dark dithered background - cached noise pattern
+    const noiseCanvas = getCachedNoiseCanvas(w, h);
+    ctx.drawImage(noiseCanvas, 0, 0);
   }
 }
 
@@ -760,30 +800,34 @@ function drawVideoPresetFrame(
       break;
     }
     case 'noise-static': {
-      const imgData = ctx.getImageData(x, y, width, height);
-      const data = imgData.data;
-      for (let i = 0; i < data.length; i += 16) {
-        const v = Math.random() * 40;
-        data[i] = Math.min(255, data[i] + v);
-        data[i + 1] = Math.min(255, data[i + 1] + v);
-        data[i + 2] = Math.min(255, data[i + 2] + v);
+      // Optimized: draw random rectangles instead of per-pixel manipulation
+      ctx.save();
+      const blockSize = 4;
+      for (let py = 0; py < height; py += blockSize) {
+        for (let px = 0; px < width; px += blockSize) {
+          const v = Math.random() * 40;
+          ctx.fillStyle = `rgba(${v},${v},${v},0.3)`;
+          ctx.fillRect(x + px, y + py, blockSize, blockSize);
+        }
       }
-      ctx.putImageData(imgData, x, y);
+      ctx.restore();
       break;
     }
     case 'plasma': {
       const t = progress * Math.PI * 2;
       ctx.save();
       ctx.globalAlpha = 0.12;
-      for (let py = 0; py < height; py += 8) {
-        for (let px = 0; px < width; px += 8) {
+      // Larger cells for better performance
+      const cellSize = 12;
+      for (let py = 0; py < height; py += cellSize) {
+        for (let px = 0; px < width; px += cellSize) {
           const v1 = Math.sin(px * 0.02 + t);
           const v2 = Math.sin(py * 0.02 + t * 1.3);
           const v3 = Math.sin((px + py) * 0.015 + t * 0.7);
           const val = (v1 + v2 + v3) / 3;
-          const hue = Math.round((val + 1) * 180);
+          const hue = ((val + 1) * 180) | 0;
           ctx.fillStyle = `hsl(${hue}, 90%, 55%)`;
-          ctx.fillRect(x + px, y + py, 8, 8);
+          ctx.fillRect(x + px, y + py, cellSize, cellSize);
         }
       }
       ctx.restore();
@@ -854,6 +898,274 @@ function drawVideoPresetFrame(
       break;
     }
   }
+}
+
+// ─── Decorative Elements System ─────────────────────────────────
+
+function getDecorativeColors(preset: GraphicPresetType): string[] {
+  switch (preset) {
+    case 'kawaii-core': return KAWAII_COLORS;
+    case 'frutiger-aero': return [...FRUTIGER_COLORS, ...FRUTIGER_GREEN];
+    case 'retro-ps1': return ['#00FF00', '#00CC00', '#008800', '#33FF33', '#66FF66', '#009900'];
+    default: return ['#FFFFFF', '#00FFFF', '#FF00FF', '#FFFF00', '#00FF00', '#FF6600'];
+  }
+}
+
+function drawDecorativeElements(
+  ctx: CanvasRenderingContext2D,
+  slice: SliceData,
+  settings: DecorativeSettings,
+  preset: GraphicPresetType,
+  animProgress?: number,
+) {
+  const { x, y, width, height } = slice;
+  const colors = getDecorativeColors(preset);
+  const baseSize = Math.min(width, height) * 0.025 * (settings.size / 100);
+  const count = settings.density * 4; // 4 to 20 elements
+  const rng = seededRandom(slice.x * 1000 + slice.y * 7 + width * 13 + height * 31);
+
+  ctx.save();
+  ctx.globalAlpha = settings.opacity / 100;
+
+  for (const elemType of settings.enabled) {
+    for (let i = 0; i < count; i++) {
+      const ex = x + rng() * width;
+      const ey = y + rng() * height;
+      const color = colors[Math.floor(rng() * colors.length)];
+      const sizeVariation = 0.5 + rng() * 1.0;
+      const elemSize = baseSize * sizeVariation;
+
+      let animOffset = 0;
+      if (settings.animated && animProgress !== undefined) {
+        animOffset = Math.sin(animProgress * Math.PI * 2 + i * 0.7) * elemSize * 0.3;
+      }
+
+      ctx.save();
+      ctx.fillStyle = color;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = Math.max(1, elemSize * 0.1);
+
+      switch (elemType) {
+        case 'stars':
+          drawStar(ctx, ex, ey + animOffset, elemSize, 4);
+          break;
+        case 'hearts':
+          drawHeart(ctx, ex, ey + animOffset, elemSize);
+          break;
+        case 'sparkles':
+          drawSparkle(ctx, ex, ey + animOffset, elemSize);
+          break;
+        case 'music-notes':
+          drawMusicNote(ctx, ex, ey + animOffset, elemSize);
+          break;
+        case 'flowers':
+          drawFlower(ctx, ex, ey + animOffset, elemSize, color);
+          break;
+        case 'diamonds':
+          drawDiamond(ctx, ex, ey + animOffset, elemSize);
+          break;
+        case 'clouds':
+          drawCloud(ctx, ex, ey + animOffset, elemSize);
+          break;
+        case 'pixels':
+          drawPixelBlock(ctx, ex, ey + animOffset, elemSize);
+          break;
+        case 'circles':
+          drawDecoCircle(ctx, ex, ey + animOffset, elemSize);
+          break;
+        case 'crosses':
+          drawDecoCross(ctx, ex, ey + animOffset, elemSize);
+          break;
+        case 'arrows':
+          drawArrow(ctx, ex, ey + animOffset, elemSize, rng());
+          break;
+        case 'lightning':
+          drawLightning(ctx, ex, ey + animOffset, elemSize);
+          break;
+      }
+      ctx.restore();
+    }
+  }
+  ctx.restore();
+}
+
+function drawStar(ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number, points: number) {
+  ctx.beginPath();
+  for (let i = 0; i < points * 2; i++) {
+    const angle = (Math.PI * 2 * i) / (points * 2) - Math.PI / 2;
+    const r = i % 2 === 0 ? size : size * 0.35;
+    const px = cx + Math.cos(angle) * r;
+    const py = cy + Math.sin(angle) * r;
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.fill();
+}
+
+function drawHeart(ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number) {
+  const s = size * 0.6;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy + s * 0.6);
+  ctx.bezierCurveTo(cx - s, cy - s * 0.2, cx - s * 0.5, cy - s, cx, cy - s * 0.4);
+  ctx.bezierCurveTo(cx + s * 0.5, cy - s, cx + s, cy - s * 0.2, cx, cy + s * 0.6);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function drawSparkle(ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number) {
+  // 6-point sparkle with alternating long and short rays
+  ctx.beginPath();
+  for (let i = 0; i < 12; i++) {
+    const angle = (Math.PI * 2 * i) / 12 - Math.PI / 2;
+    const r = i % 2 === 0 ? size : size * 0.2;
+    const px = cx + Math.cos(angle) * r;
+    const py = cy + Math.sin(angle) * r;
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.fill();
+  // Inner glow dot
+  ctx.beginPath();
+  ctx.arc(cx, cy, size * 0.15, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawMusicNote(ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number) {
+  const s = size * 0.5;
+  // Note head (filled ellipse)
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + s * 0.3, s * 0.35, s * 0.25, -0.3, 0, Math.PI * 2);
+  ctx.fill();
+  // Stem
+  ctx.beginPath();
+  ctx.moveTo(cx + s * 0.3, cy + s * 0.2);
+  ctx.lineTo(cx + s * 0.3, cy - s * 0.8);
+  ctx.stroke();
+  // Flag
+  ctx.beginPath();
+  ctx.moveTo(cx + s * 0.3, cy - s * 0.8);
+  ctx.quadraticCurveTo(cx + s * 0.8, cy - s * 0.4, cx + s * 0.3, cy - s * 0.1);
+  ctx.stroke();
+}
+
+function drawFlower(ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number, color: string) {
+  const petalCount = 5;
+  const petalR = size * 0.5;
+  // Petals
+  for (let i = 0; i < petalCount; i++) {
+    const angle = (Math.PI * 2 * i) / petalCount;
+    const px = cx + Math.cos(angle) * petalR * 0.5;
+    const py = cy + Math.sin(angle) * petalR * 0.5;
+    ctx.beginPath();
+    ctx.arc(px, py, petalR * 0.4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // Center
+  ctx.fillStyle = adjustBrightness(color, 1.5);
+  ctx.beginPath();
+  ctx.arc(cx, cy, size * 0.15, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function adjustBrightness(hex: string, factor: number): string {
+  const r = Math.min(255, parseInt(hex.slice(1, 3), 16) * factor);
+  const g = Math.min(255, parseInt(hex.slice(3, 5), 16) * factor);
+  const b = Math.min(255, parseInt(hex.slice(5, 7), 16) * factor);
+  return `rgb(${r | 0},${g | 0},${b | 0})`;
+}
+
+function drawDiamond(ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number) {
+  const s = size * 0.7;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - s);
+  ctx.lineTo(cx + s * 0.6, cy);
+  ctx.lineTo(cx, cy + s);
+  ctx.lineTo(cx - s * 0.6, cy);
+  ctx.closePath();
+  ctx.fill();
+  // Inner highlight line
+  ctx.save();
+  ctx.globalAlpha = 0.5;
+  ctx.strokeStyle = '#FFFFFF';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(cx - s * 0.4, cy - s * 0.15);
+  ctx.lineTo(cx + s * 0.4, cy - s * 0.15);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawCloud(ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number) {
+  const s = size * 0.6;
+  ctx.beginPath();
+  ctx.arc(cx - s * 0.3, cy, s * 0.35, 0, Math.PI * 2);
+  ctx.arc(cx + s * 0.3, cy, s * 0.35, 0, Math.PI * 2);
+  ctx.arc(cx, cy - s * 0.2, s * 0.45, 0, Math.PI * 2);
+  ctx.arc(cx, cy + s * 0.1, s * 0.3, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawPixelBlock(ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number) {
+  const s = size * 0.4;
+  const grid = 3;
+  const cellSize = (s * 2) / grid;
+  for (let r = 0; r < grid; r++) {
+    for (let c = 0; c < grid; c++) {
+      if ((r + c) % 2 === 0 || (r === 1 && c === 1)) {
+        ctx.fillRect(cx - s + c * cellSize, cy - s + r * cellSize, cellSize - 1, cellSize - 1);
+      }
+    }
+  }
+}
+
+function drawDecoCircle(ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number) {
+  // Concentric ring
+  ctx.beginPath();
+  ctx.arc(cx, cy, size * 0.6, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(cx, cy, size * 0.3, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawDecoCross(ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number) {
+  const s = size * 0.7;
+  const w = s * 0.3;
+  ctx.fillRect(cx - w / 2, cy - s, w, s * 2);
+  ctx.fillRect(cx - s, cy - w / 2, s * 2, w);
+}
+
+function drawArrow(ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number, rotation: number) {
+  const s = size * 0.7;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(rotation * Math.PI * 2);
+  ctx.beginPath();
+  ctx.moveTo(0, -s);
+  ctx.lineTo(s * 0.5, -s * 0.3);
+  ctx.lineTo(s * 0.15, -s * 0.3);
+  ctx.lineTo(s * 0.15, s);
+  ctx.lineTo(-s * 0.15, s);
+  ctx.lineTo(-s * 0.15, -s * 0.3);
+  ctx.lineTo(-s * 0.5, -s * 0.3);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawLightning(ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number) {
+  const s = size * 0.7;
+  ctx.beginPath();
+  ctx.moveTo(cx + s * 0.1, cy - s);
+  ctx.lineTo(cx - s * 0.2, cy - s * 0.05);
+  ctx.lineTo(cx + s * 0.05, cy - s * 0.05);
+  ctx.lineTo(cx - s * 0.15, cy + s);
+  ctx.lineTo(cx + s * 0.25, cy + s * 0.05);
+  ctx.lineTo(cx - s * 0.02, cy + s * 0.05);
+  ctx.closePath();
+  ctx.fill();
 }
 
 // ─── Shared Drawing Utilities ───────────────────────────────────

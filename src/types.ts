@@ -105,6 +105,53 @@ export const OUTPUT_RESOLUTIONS: OutputResolution[] = [
   { id: 'custom', name: 'Custom', width: 0, height: 0 },
 ];
 
+// ─── Decorative Elements ────────────────────────────────────────
+
+export type DecorativeElementType =
+  | 'stars'
+  | 'hearts'
+  | 'sparkles'
+  | 'music-notes'
+  | 'flowers'
+  | 'diamonds'
+  | 'clouds'
+  | 'pixels'
+  | 'circles'
+  | 'crosses'
+  | 'arrows'
+  | 'lightning';
+
+export interface DecorativeSettings {
+  enabled: DecorativeElementType[];
+  density: number;    // 1-5 (how many elements)
+  size: number;       // 50-200 (percentage of default size)
+  opacity: number;    // 10-100
+  animated: boolean;  // subtle floating animation
+}
+
+export const DECORATIVE_ELEMENTS: { id: DecorativeElementType; name: string; icon: string }[] = [
+  { id: 'stars', name: 'Stars', icon: '*' },
+  { id: 'hearts', name: 'Hearts', icon: '<3' },
+  { id: 'sparkles', name: 'Sparkles', icon: '+' },
+  { id: 'music-notes', name: 'Notes', icon: '#' },
+  { id: 'flowers', name: 'Flowers', icon: '@' },
+  { id: 'diamonds', name: 'Diamonds', icon: '<>' },
+  { id: 'clouds', name: 'Clouds', icon: '~' },
+  { id: 'pixels', name: 'Pixels', icon: '[]' },
+  { id: 'circles', name: 'Circles', icon: 'O' },
+  { id: 'crosses', name: 'Crosses', icon: 'X' },
+  { id: 'arrows', name: 'Arrows', icon: '^' },
+  { id: 'lightning', name: 'Bolts', icon: '!' },
+];
+
+export const DEFAULT_DECORATIVE_SETTINGS: DecorativeSettings = {
+  enabled: [],
+  density: 2,
+  size: 100,
+  opacity: 40,
+  animated: false,
+};
+
 // ─── Logo Settings ──────────────────────────────────────────────
 
 export type LogoPosition =
@@ -137,6 +184,15 @@ export const DEFAULT_LOGO_SETTINGS: LogoSettings = {
   tint: '',
   blendMode: 'source-over',
 };
+
+// ─── Logo Duplication ───────────────────────────────────────────
+
+export interface LogoInstance {
+  id: string;
+  settings: LogoSettings;
+}
+
+export const MAX_LOGO_INSTANCES = 9;
 
 export const LOGO_POSITIONS: { id: LogoPosition; label: string }[] = [
   { id: 'top-left', label: 'TL' },
@@ -267,6 +323,8 @@ export interface Preset {
   showSafeZones: boolean;
   graphicPreset?: GraphicPresetType;
   logoSettings?: LogoSettings;
+  decorativeSettings?: DecorativeSettings;
+  extraLogos?: LogoInstance[];
 }
 
 export const DEFAULT_PRESET: Preset = {
@@ -282,4 +340,6 @@ export const DEFAULT_PRESET: Preset = {
   showSafeZones: true,
   graphicPreset: 'default',
   logoSettings: DEFAULT_LOGO_SETTINGS,
+  decorativeSettings: DEFAULT_DECORATIVE_SETTINGS,
+  extraLogos: [],
 };

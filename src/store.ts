@@ -10,11 +10,15 @@ import {
   SliceOverlays,
   Preset,
   LogoSettings,
+  LogoInstance,
+  DecorativeSettings,
   AnimationPresetType,
   VideoPresetType,
   ExportFormat,
   DEFAULT_PRESET,
   DEFAULT_LOGO_SETTINGS,
+  DEFAULT_DECORATIVE_SETTINGS,
+  MAX_LOGO_INSTANCES,
   OUTPUT_RESOLUTIONS,
 } from './types';
 import { ResolumeXMLParser } from './utils/resolume-parser';
@@ -66,6 +70,8 @@ interface AppState {
   brandName: string;
   logo: HTMLImageElement | null;
   logoSettings: LogoSettings;
+  extraLogos: LogoInstance[];
+  decorativeSettings: DecorativeSettings;
   globalOverlay: OverlaySource | null;
   sliceOverlays: SliceOverlays;
 
@@ -98,6 +104,10 @@ interface AppState {
   setBrandName: (n: string) => void;
   setLogo: (img: HTMLImageElement | null) => void;
   setLogoSettings: (s: Partial<LogoSettings>) => void;
+  setDecorativeSettings: (s: Partial<DecorativeSettings>) => void;
+  addLogoInstance: () => void;
+  removeLogoInstance: (id: string) => void;
+  updateLogoInstance: (id: string, settings: Partial<LogoSettings>) => void;
   setGlobalOverlay: (src: OverlaySource | null) => void;
   setSliceOverlay: (sliceId: string, src: OverlaySource | null) => void;
   setShowLabels: (v: boolean) => void;
@@ -148,6 +158,8 @@ export const useStore = create<AppState>((set, get) => ({
   brandName: initial.brandName,
   logo: null,
   logoSettings: initial.logoSettings || DEFAULT_LOGO_SETTINGS,
+  extraLogos: initial.extraLogos || [],
+  decorativeSettings: initial.decorativeSettings || DEFAULT_DECORATIVE_SETTINGS,
   globalOverlay: null,
   sliceOverlays: {},
 
@@ -250,6 +262,45 @@ export const useStore = create<AppState>((set, get) => ({
     persistSettings(get());
   },
 
+  setDecorativeSettings: (partial) => {
+    set((state) => ({
+      decorativeSettings: { ...state.decorativeSettings, ...partial },
+    }));
+    persistSettings(get());
+  },
+
+  addLogoInstance: () => {
+    const { extraLogos } = get();
+    if (extraLogos.length >= MAX_LOGO_INSTANCES - 1) return; // -1 because main logo counts
+    const positions: import('./types').LogoPosition[] = ['top-left', 'top-center', 'top-right', 'center-left', 'center', 'center-right', 'bottom-left', 'bottom-center', 'bottom-right'];
+    // Pick a position not already used
+    const usedPositions = [get().logoSettings.position, ...extraLogos.map(l => l.settings.position)];
+    const available = positions.filter(p => !usedPositions.includes(p));
+    const pos = available[0] || 'center';
+    const instance: LogoInstance = {
+      id: `logo-${Date.now()}`,
+      settings: { ...DEFAULT_LOGO_SETTINGS, position: pos },
+    };
+    set({ extraLogos: [...extraLogos, instance] });
+    persistSettings(get());
+  },
+
+  removeLogoInstance: (id: string) => {
+    set((state) => ({
+      extraLogos: state.extraLogos.filter(l => l.id !== id),
+    }));
+    persistSettings(get());
+  },
+
+  updateLogoInstance: (id: string, partial: Partial<LogoSettings>) => {
+    set((state) => ({
+      extraLogos: state.extraLogos.map(l =>
+        l.id === id ? { ...l, settings: { ...l.settings, ...partial } } : l
+      ),
+    }));
+    persistSettings(get());
+  },
+
   setGlobalOverlay: (src) => set({ globalOverlay: src }),
 
   setSliceOverlay: (sliceId, src) => {
@@ -331,6 +382,8 @@ export const useStore = create<AppState>((set, get) => ({
       showSafeZones: s.showSafeZones,
       graphicPreset: s.graphicPreset,
       logoSettings: s.logoSettings,
+      decorativeSettings: s.decorativeSettings,
+      extraLogos: s.extraLogos,
     };
     const presets = [...s.savedPresets.filter(p => p.name !== name), preset];
     set({ savedPresets: presets });
@@ -351,6 +404,8 @@ export const useStore = create<AppState>((set, get) => ({
       showSafeZones: preset.showSafeZones,
       graphicPreset: preset.graphicPreset || 'default',
       logoSettings: preset.logoSettings || DEFAULT_LOGO_SETTINGS,
+      decorativeSettings: preset.decorativeSettings || DEFAULT_DECORATIVE_SETTINGS,
+      extraLogos: preset.extraLogos || [],
     });
     // Re-parse XML with new view mode
     const { rawXML } = get();
@@ -420,5 +475,7 @@ function persistSettings(s: AppState) {
     showSafeZones: s.showSafeZones,
     graphicPreset: s.graphicPreset,
     logoSettings: s.logoSettings,
+    decorativeSettings: s.decorativeSettings,
+    extraLogos: s.extraLogos,
   });
 }
