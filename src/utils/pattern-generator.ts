@@ -925,7 +925,6 @@ function drawDecorativeElements(
   const rng = seededRandom(slice.x * 1000 + slice.y * 7 + width * 13 + height * 31);
 
   ctx.save();
-  ctx.globalAlpha = settings.opacity / 100;
 
   for (const elemType of settings.enabled) {
     for (let i = 0; i < count; i++) {
@@ -934,53 +933,78 @@ function drawDecorativeElements(
       const color = colors[Math.floor(rng() * colors.length)];
       const sizeVariation = 0.5 + rng() * 1.0;
       const elemSize = baseSize * sizeVariation;
+      const elemPhase = rng() * Math.PI * 2; // unique phase offset per element
+      const elemSpeed = 0.5 + rng() * 0.5; // unique speed per element
 
-      let animOffset = 0;
+      // Smooth multi-axis animation
+      let animX = 0, animY = 0, animScale = 1, animAlpha = settings.opacity / 100;
+      let animRotation = 0;
       if (settings.animated && animProgress !== undefined) {
-        animOffset = Math.sin(animProgress * Math.PI * 2 + i * 0.7) * elemSize * 0.3;
+        const t = animProgress * Math.PI * 2;
+        // Smooth floating: combined sin/cos for organic Lissajous-like movement
+        animY = Math.sin(t * elemSpeed + elemPhase) * elemSize * 0.5;
+        animX = Math.cos(t * elemSpeed * 0.7 + elemPhase + 1.3) * elemSize * 0.25;
+        // Gentle scale pulse
+        animScale = 1 + Math.sin(t * elemSpeed * 0.5 + elemPhase) * 0.12;
+        // Subtle rotation
+        animRotation = Math.sin(t * elemSpeed * 0.3 + elemPhase) * 0.15;
+        // Gentle opacity breathing
+        animAlpha = (settings.opacity / 100) * (0.85 + Math.sin(t * elemSpeed * 0.4 + elemPhase) * 0.15);
       }
 
       ctx.save();
+      ctx.globalAlpha = animAlpha;
       ctx.fillStyle = color;
       ctx.strokeStyle = color;
       ctx.lineWidth = Math.max(1, elemSize * 0.1);
 
+      // Apply transform from element center
+      if (settings.animated && animProgress !== undefined) {
+        ctx.translate(ex + animX, ey + animY);
+        ctx.rotate(animRotation);
+        ctx.scale(animScale, animScale);
+        ctx.translate(-(ex + animX), -(ey + animY));
+      }
+
+      const drawX = ex + animX;
+      const drawY = ey + animY;
+
       switch (elemType) {
         case 'stars':
-          drawStar(ctx, ex, ey + animOffset, elemSize, 4);
+          drawStar(ctx, drawX, drawY, elemSize, 4);
           break;
         case 'hearts':
-          drawHeart(ctx, ex, ey + animOffset, elemSize);
+          drawHeart(ctx, drawX, drawY, elemSize);
           break;
         case 'sparkles':
-          drawSparkle(ctx, ex, ey + animOffset, elemSize);
+          drawSparkle(ctx, drawX, drawY, elemSize);
           break;
         case 'music-notes':
-          drawMusicNote(ctx, ex, ey + animOffset, elemSize);
+          drawMusicNote(ctx, drawX, drawY, elemSize);
           break;
         case 'flowers':
-          drawFlower(ctx, ex, ey + animOffset, elemSize, color);
+          drawFlower(ctx, drawX, drawY, elemSize, color);
           break;
         case 'diamonds':
-          drawDiamond(ctx, ex, ey + animOffset, elemSize);
+          drawDiamond(ctx, drawX, drawY, elemSize);
           break;
         case 'clouds':
-          drawCloud(ctx, ex, ey + animOffset, elemSize);
+          drawCloud(ctx, drawX, drawY, elemSize);
           break;
         case 'pixels':
-          drawPixelBlock(ctx, ex, ey + animOffset, elemSize);
+          drawPixelBlock(ctx, drawX, drawY, elemSize);
           break;
         case 'circles':
-          drawDecoCircle(ctx, ex, ey + animOffset, elemSize);
+          drawDecoCircle(ctx, drawX, drawY, elemSize);
           break;
         case 'crosses':
-          drawDecoCross(ctx, ex, ey + animOffset, elemSize);
+          drawDecoCross(ctx, drawX, drawY, elemSize);
           break;
         case 'arrows':
-          drawArrow(ctx, ex, ey + animOffset, elemSize, rng());
+          drawArrow(ctx, drawX, drawY, elemSize, rng());
           break;
         case 'lightning':
-          drawLightning(ctx, ex, ey + animOffset, elemSize);
+          drawLightning(ctx, drawX, drawY, elemSize);
           break;
       }
       ctx.restore();

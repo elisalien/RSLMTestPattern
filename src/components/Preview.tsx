@@ -40,10 +40,9 @@ function buildOptions(s: any, animProgress?: number): GeneratorOptions {
 }
 
 export function Preview() {
-  const imgRef = useRef<HTMLImageElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const animRef = useRef<number>(0);
   const startTimeRef = useRef<number>(0);
-  const lastFrameTimeRef = useRef<number>(0);
 
   const setup = useStore(s => s.resolumeSetup);
   const template = useStore(s => s.template);
@@ -70,7 +69,7 @@ export function Preview() {
   const hasAnimation = animationPreset !== 'none' || videoPreset !== 'none' || decorativeSettings.animated;
 
   const renderFrame = useCallback((progress?: number) => {
-    if (!setup || !imgRef.current) return;
+    if (!setup || !canvasRef.current) return;
 
     const dims = getDims();
     const allSlices = getScaledSlices(setup, dims, outputResolution);
@@ -78,8 +77,16 @@ export function Preview() {
 
     const options = buildOptions(useStore.getState(), progress);
 
-    const canvas = generateComposition(slices, dims.width, dims.height, options);
-    imgRef.current.src = canvas.toDataURL();
+    // Direct canvas rendering - no toDataURL() overhead
+    const offscreen = generateComposition(slices, dims.width, dims.height, options);
+    const canvas = canvasRef.current;
+    if (canvas.width !== dims.width || canvas.height !== dims.height) {
+      canvas.width = dims.width;
+      canvas.height = dims.height;
+    }
+    const ctx = canvas.getContext('2d')!;
+    ctx.clearRect(0, 0, dims.width, dims.height);
+    ctx.drawImage(offscreen, 0, 0);
   }, [setup, getDims, outputResolution, disabledSlices]);
 
   useEffect(() => {
@@ -92,15 +99,10 @@ export function Preview() {
       const apInfo = ANIMATION_PRESETS.find(p => p.id === animationPreset);
       const duration = Math.max(vpInfo?.durationMs || 2000, apInfo?.durationMs || 2000);
 
-      const targetInterval = 1000 / 30; // Cap preview at 30fps for performance
       const animate = (time: number) => {
-        const sinceLastFrame = time - lastFrameTimeRef.current;
-        if (sinceLastFrame >= targetInterval) {
-          lastFrameTimeRef.current = time;
-          const elapsed = time - startTimeRef.current;
-          const progress = (elapsed * animationSpeed / duration) % 1;
-          renderFrame(progress);
-        }
+        const elapsed = time - startTimeRef.current;
+        const progress = (elapsed * animationSpeed / duration) % 1;
+        renderFrame(progress);
         animRef.current = requestAnimationFrame(animate);
       };
 
@@ -128,11 +130,10 @@ export function Preview() {
 
   return (
     <div className="flex-1 overflow-auto p-4 flex items-center justify-center bg-gray-950/50 preview-responsive">
-      <img
-        ref={imgRef}
-        alt="Test Pattern Preview"
+      <canvas
+        ref={canvasRef}
         className="max-w-full max-h-full object-contain rounded border border-gray-700/50 shadow-2xl"
-        style={{ imageRendering: 'crisp-edges' }}
+        style={{ imageRendering: 'auto' }}
       />
     </div>
   );
@@ -205,7 +206,7 @@ export async function exportVideo() {
 
     const mimeType = getSupportedMimeType();
     const recorderOptions: MediaRecorderOptions = {
-      videoBitsPerSecond: 8000000,
+      videoBitsPerSecond: 12000000, // Higher bitrate for better quality
     };
     if (mimeType) recorderOptions.mimeType = mimeType;
 
@@ -234,7 +235,7 @@ export async function exportVideo() {
 
     mediaRecorder.start();
 
-    // Render frames
+    // Render frames with proper timing using requestAnimationFrame for smooth output
     const recordCtx = recordCanvas.getContext('2d')!;
     for (let frame = 0; frame < totalFrames; frame++) {
       const progress = frame / totalFrames;
@@ -243,7 +244,7 @@ export async function exportVideo() {
       recordCtx.clearRect(0, 0, dims.width, dims.height);
       recordCtx.drawImage(frameCanvas, 0, 0);
 
-      // Wait for next frame timing
+      // Yield to let MediaRecorder capture the frame properly
       await new Promise(r => setTimeout(r, 1000 / fps));
     }
 
