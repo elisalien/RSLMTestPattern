@@ -102,14 +102,13 @@ export class ResolumeXMLParser {
       }
     } else {
       // Input view: InputRect coords are in composition source space
-      // This space may differ from the output device size, so we scale
-      // proportionally to fill the compositionSize canvas
+      // Display at actual pixel positions to match Resolume's Input Selection view
       if (inMaxX > 1.5 || inMaxY > 1.5) {
-        // Pixel coords in source space - scale to fill canvas
-        scaleX = inMaxX > 0 ? compositionSize.width / inMaxX : 1;
-        scaleY = inMaxY > 0 ? compositionSize.height / inMaxY : 1;
+        // Pixel coords - use 1:1 mapping (same as output mode)
+        scaleX = 1;
+        scaleY = 1;
       } else {
-        // Normalized 0-1
+        // Normalized 0-1 - scale to composition size
         scaleX = compositionSize.width;
         scaleY = compositionSize.height;
       }
@@ -127,6 +126,12 @@ export class ResolumeXMLParser {
     if (screen.OutputDevice?.OutputDeviceVirtual) {
       const vo = screen.OutputDevice.OutputDeviceVirtual;
       return { width: vo['@_width'] || 1920, height: vo['@_height'] || 1080 };
+    }
+    if (screen.OutputDevice?.OutputDeviceSpout) {
+      const sp = screen.OutputDevice.OutputDeviceSpout;
+      if (sp['@_width'] && sp['@_height']) {
+        return { width: sp['@_width'], height: sp['@_height'] };
+      }
     }
     if (screenSetup.CurrentCompositionTextureSize) {
       const cs = screenSetup.CurrentCompositionTextureSize;
