@@ -3,14 +3,15 @@ import {
   Upload, Download, Image as ImageIcon, Film, Grid3x3,
   Settings, Save, FolderOpen, Trash2, Eye, EyeOff, Tag,
   Monitor, Layers, Palette, Play, Sparkles, ChevronDown, ChevronUp,
-  Move,
+  Move, Plus, Minus, Copy,
 } from 'lucide-react';
 import { useStore } from '../store';
 import {
   TEMPLATES, OUTPUT_RESOLUTIONS, TemplateType, GRAPHIC_PRESETS,
   GraphicPresetType, LOGO_POSITIONS, BLEND_MODES, ANIMATION_PRESETS,
   VIDEO_PRESETS, EXPORT_FORMATS, LogoPosition, AnimationPresetType,
-  VideoPresetType, ExportFormat,
+  VideoPresetType, ExportFormat, DECORATIVE_ELEMENTS, DecorativeElementType,
+  MAX_LOGO_INSTANCES,
 } from '../types';
 import { exportComposition, exportVideo } from './Preview';
 
@@ -29,6 +30,8 @@ export function Sidebar() {
         <SettingsSection />
         <BrandingSection />
         <LogoSettingsSection />
+        <LogoDuplicationSection />
+        <DecorativeElementsSection />
         <AnimationSection />
         <VideoPresetSection />
         <PresetSection />
@@ -521,6 +524,196 @@ function LogoSettingsSection() {
               ))}
             </select>
           </div>
+        </div>
+      )}
+    </Section>
+  );
+}
+
+// ─── Logo Duplication ──────────────────────────────────────────
+
+function LogoDuplicationSection() {
+  const logo = useStore(s => s.logo);
+  const extraLogos = useStore(s => s.extraLogos);
+  const addLogoInstance = useStore(s => s.addLogoInstance);
+  const removeLogoInstance = useStore(s => s.removeLogoInstance);
+  const updateLogoInstance = useStore(s => s.updateLogoInstance);
+
+  if (!logo) return null;
+
+  return (
+    <Section title="Logo Copies" icon={<Copy size={16} />}>
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] text-gray-400">
+            {extraLogos.length} / {MAX_LOGO_INSTANCES - 1} copies
+          </span>
+          <button
+            onClick={addLogoInstance}
+            disabled={extraLogos.length >= MAX_LOGO_INSTANCES - 1}
+            className="btn btn-success py-1 px-2 text-[10px] flex items-center gap-1"
+          >
+            <Plus size={10} /> Add Copy
+          </button>
+        </div>
+
+        {extraLogos.map((inst, idx) => (
+          <div key={inst.id} className="bg-gray-800/50 rounded p-2 space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-gray-300 font-medium">Copy {idx + 1}</span>
+              <button
+                onClick={() => removeLogoInstance(inst.id)}
+                className="text-red-400 hover:text-red-300"
+                title="Remove"
+              >
+                <Minus size={12} />
+              </button>
+            </div>
+
+            {/* Position Grid */}
+            <div className="grid grid-cols-3 gap-0.5">
+              {LOGO_POSITIONS.map(pos => (
+                <button
+                  key={pos.id}
+                  onClick={() => updateLogoInstance(inst.id, { position: pos.id as LogoPosition })}
+                  className={`py-1 rounded text-[9px] font-bold transition-all ${
+                    inst.settings.position === pos.id
+                      ? 'bg-purple-500 text-white'
+                      : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                  }`}
+                >
+                  {pos.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Size */}
+            <div>
+              <label className="text-[9px] text-gray-500 flex justify-between">
+                <span>Size</span><span>{inst.settings.size}%</span>
+              </label>
+              <input type="range" min={2} max={80} value={inst.settings.size}
+                onChange={e => updateLogoInstance(inst.id, { size: parseInt(e.target.value) })}
+                className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-500" />
+            </div>
+
+            {/* Opacity */}
+            <div>
+              <label className="text-[9px] text-gray-500 flex justify-between">
+                <span>Opacity</span><span>{inst.settings.opacity}%</span>
+              </label>
+              <input type="range" min={5} max={100} value={inst.settings.opacity}
+                onChange={e => updateLogoInstance(inst.id, { opacity: parseInt(e.target.value) })}
+                className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-500" />
+            </div>
+
+            {/* Rotation */}
+            <div>
+              <label className="text-[9px] text-gray-500 flex justify-between">
+                <span>Rotation</span><span>{inst.settings.rotation}deg</span>
+              </label>
+              <input type="range" min={0} max={360} value={inst.settings.rotation}
+                onChange={e => updateLogoInstance(inst.id, { rotation: parseInt(e.target.value) })}
+                className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-500" />
+            </div>
+
+            {/* Blend Mode */}
+            <div>
+              <select
+                value={inst.settings.blendMode}
+                onChange={e => updateLogoInstance(inst.id, { blendMode: e.target.value as GlobalCompositeOperation })}
+                className="input text-[9px] w-full"
+              >
+                {BLEND_MODES.map(b => (
+                  <option key={b.id} value={b.id}>{b.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        ))}
+      </div>
+    </Section>
+  );
+}
+
+// ─── Decorative Elements ──────────────────────────────────────
+
+function DecorativeElementsSection() {
+  const setup = useStore(s => s.resolumeSetup);
+  const decorativeSettings = useStore(s => s.decorativeSettings);
+  const setDecorativeSettings = useStore(s => s.setDecorativeSettings);
+
+  if (!setup) return null;
+
+  const toggleElement = (id: DecorativeElementType) => {
+    const current = decorativeSettings.enabled;
+    const next = current.includes(id)
+      ? current.filter(e => e !== id)
+      : [...current, id];
+    setDecorativeSettings({ enabled: next });
+  };
+
+  return (
+    <Section title="Decorative Elements" icon={<Sparkles size={16} />}>
+      <div className="grid grid-cols-4 gap-1 mb-2">
+        {DECORATIVE_ELEMENTS.map(elem => (
+          <button
+            key={elem.id}
+            onClick={() => toggleElement(elem.id)}
+            className={`py-1.5 px-1 rounded text-[9px] transition-all ${
+              decorativeSettings.enabled.includes(elem.id)
+                ? 'bg-pink-500/20 border border-pink-500/50 text-pink-300'
+                : 'bg-gray-800/50 border border-gray-700 text-gray-500 hover:border-gray-500'
+            }`}
+            title={elem.name}
+          >
+            {elem.name}
+          </button>
+        ))}
+      </div>
+
+      {decorativeSettings.enabled.length > 0 && (
+        <div className="space-y-2">
+          {/* Density */}
+          <div>
+            <label className="text-[10px] text-gray-500 flex justify-between">
+              <span>Density</span><span>{decorativeSettings.density}</span>
+            </label>
+            <input type="range" min={1} max={5} step={1} value={decorativeSettings.density}
+              onChange={e => setDecorativeSettings({ density: parseInt(e.target.value) })}
+              className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-pink-500" />
+          </div>
+
+          {/* Size */}
+          <div>
+            <label className="text-[10px] text-gray-500 flex justify-between">
+              <span>Size</span><span>{decorativeSettings.size}%</span>
+            </label>
+            <input type="range" min={50} max={200} step={10} value={decorativeSettings.size}
+              onChange={e => setDecorativeSettings({ size: parseInt(e.target.value) })}
+              className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-pink-500" />
+          </div>
+
+          {/* Opacity */}
+          <div>
+            <label className="text-[10px] text-gray-500 flex justify-between">
+              <span>Opacity</span><span>{decorativeSettings.opacity}%</span>
+            </label>
+            <input type="range" min={10} max={100} step={5} value={decorativeSettings.opacity}
+              onChange={e => setDecorativeSettings({ opacity: parseInt(e.target.value) })}
+              className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-pink-500" />
+          </div>
+
+          {/* Animated toggle */}
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={decorativeSettings.animated}
+              onChange={e => setDecorativeSettings({ animated: e.target.checked })}
+              className="accent-pink-500"
+            />
+            <span className="text-[10px] text-gray-400">Animate (floating)</span>
+          </label>
         </div>
       )}
     </Section>

@@ -28,6 +28,8 @@ function buildOptions(s: any, animProgress?: number): GeneratorOptions {
     showSafeZones: s.showSafeZones,
     logo: s.logo,
     logoSettings: s.logoSettings,
+    extraLogos: s.extraLogos || [],
+    decorativeSettings: s.decorativeSettings || { enabled: [], density: 2, size: 100, opacity: 40, animated: false },
     globalOverlay: s.globalOverlay,
     sliceOverlays: s.sliceOverlays,
     brandName: s.brandName,
@@ -41,6 +43,7 @@ export function Preview() {
   const imgRef = useRef<HTMLImageElement>(null);
   const animRef = useRef<number>(0);
   const startTimeRef = useRef<number>(0);
+  const lastFrameTimeRef = useRef<number>(0);
 
   const setup = useStore(s => s.resolumeSetup);
   const template = useStore(s => s.template);
@@ -61,8 +64,10 @@ export function Preview() {
   const animationPreset = useStore(s => s.animationPreset);
   const videoPreset = useStore(s => s.videoPreset);
   const animationSpeed = useStore(s => s.animationSpeed);
+  const decorativeSettings = useStore(s => s.decorativeSettings);
+  const extraLogos = useStore(s => s.extraLogos);
 
-  const hasAnimation = animationPreset !== 'none' || videoPreset !== 'none';
+  const hasAnimation = animationPreset !== 'none' || videoPreset !== 'none' || decorativeSettings.animated;
 
   const renderFrame = useCallback((progress?: number) => {
     if (!setup || !imgRef.current) return;
@@ -87,10 +92,15 @@ export function Preview() {
       const apInfo = ANIMATION_PRESETS.find(p => p.id === animationPreset);
       const duration = Math.max(vpInfo?.durationMs || 2000, apInfo?.durationMs || 2000);
 
+      const targetInterval = 1000 / 30; // Cap preview at 30fps for performance
       const animate = (time: number) => {
-        const elapsed = time - startTimeRef.current;
-        const progress = (elapsed * animationSpeed / duration) % 1;
-        renderFrame(progress);
+        const sinceLastFrame = time - lastFrameTimeRef.current;
+        if (sinceLastFrame >= targetInterval) {
+          lastFrameTimeRef.current = time;
+          const elapsed = time - startTimeRef.current;
+          const progress = (elapsed * animationSpeed / duration) % 1;
+          renderFrame(progress);
+        }
         animRef.current = requestAnimationFrame(animate);
       };
 
@@ -101,7 +111,8 @@ export function Preview() {
     }
   }, [setup, template, graphicPreset, gridSize, showLabels, showSafeZones, logo, logoSettings,
       globalOverlay, sliceOverlays, brandName, outputResolution, customWidth, customHeight,
-      getDims, disabledSlices, animationPreset, videoPreset, animationSpeed, hasAnimation, renderFrame]);
+      getDims, disabledSlices, animationPreset, videoPreset, animationSpeed, hasAnimation, renderFrame,
+      decorativeSettings, extraLogos]);
 
   if (!setup) {
     return (
