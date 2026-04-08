@@ -112,8 +112,9 @@ export class ResolumeXMLParser {
       inScaleY = compositionSize.height;
     }
 
-    const scaleX = viewMode === 'input' ? inScaleX : outScaleX;
-    const scaleY = viewMode === 'input' ? inScaleY : outScaleY;
+    // Swapped: output view uses InputRect scale, input view uses OutputRect scale
+    const scaleX = viewMode === 'input' ? outScaleX : inScaleX;
+    const scaleY = viewMode === 'input' ? outScaleY : inScaleY;
 
     return sliceArray
       .map((slice: any) => this.parseSlice(slice, viewMode, scaleX, scaleY))
@@ -148,7 +149,9 @@ export class ResolumeXMLParser {
 
       const outputRect = this.parseRect(slice.OutputRect);
       const inputRect = this.parseRect(slice.InputRect);
-      const activeRect = viewMode === 'input' ? inputRect : outputRect;
+      // In Resolume XML: InputRect = screen coordinates (Advanced Output view)
+      //                  OutputRect = composition coordinates (Advanced Input view)
+      const activeRect = viewMode === 'input' ? outputRect : inputRect;
 
       if (activeRect.length < 4) return null;
 
