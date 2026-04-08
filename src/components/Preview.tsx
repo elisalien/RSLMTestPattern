@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useStore } from '../store';
 import { generateComposition, renderCompositionInto, GeneratorOptions } from '../utils/pattern-generator';
-import { LOOP_DURATION_MS } from '../types';
+import { LOOP_DURATION_MS, DEFAULT_OVERLAY_SETTINGS } from '../types';
 
 function getScaledSlices(setup: any, dims: any, outputResolution: any) {
   let slices = setup.slices;
@@ -29,9 +29,9 @@ function buildOptions(s: any, animProgress?: number): GeneratorOptions {
     logo: s.logo,
     logoSettings: s.logoSettings,
     extraLogos: s.extraLogos || [],
-    decorativeSettings: s.decorativeSettings || { enabled: [], density: 2, size: 100, opacity: 40, animated: false, animSpeed: 1, durationMs: 3000 },
+    decorativeSettings: s.decorativeSettings || { enabled: [], density: 2, size: 100, opacity: 40, animated: false, animSpeed: 1, durationMs: LOOP_DURATION_MS },
     globalOverlay: s.globalOverlay,
-    overlaySettings: s.overlaySettings,
+    overlaySettings: s.overlaySettings || DEFAULT_OVERLAY_SETTINGS,
     sliceOverlays: s.sliceOverlays,
     brandName: s.brandName,
     animationPreset: s.animationPreset,
@@ -73,23 +73,41 @@ export function Preview() {
   const renderFrame = useCallback((progress?: number) => {
     if (!setup || !canvasRef.current) return;
 
-    const dims = getDims();
-    const allSlices = getScaledSlices(setup, dims, outputResolution);
-    const slices = allSlices.filter((s: any) => !disabledSlices.has(s.id));
+    try {
+      const dims = getDims();
+      if (!dims.width || !dims.height) return;
 
-    const options = buildOptions(useStore.getState(), progress);
+      const allSlices = getScaledSlices(setup, dims, outputResolution);
+      const slices = allSlices.filter((s: any) => !disabledSlices.has(s.id));
 
-    const canvas = canvasRef.current;
-    if (canvas.width !== dims.width || canvas.height !== dims.height) {
-      canvas.width = dims.width;
-      canvas.height = dims.height;
+      const options = buildOptions(useStore.getState(), progress);
+
+      const canvas = canvasRef.current;
+      if (canvas.width !== dims.width || canvas.height !== dims.height) {
+        canvas.width = dims.width;
+        canvas.height = dims.height;
+      }
+
+      const offscreen = generateComposition(slices, dims.width, dims.height, options);
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.clearRect(0, 0, dims.width, dims.height);
+      ctx.drawImage(offscreen, 0, 0);
+    } catch (err) {
+      console.error('Render error:', err);
+      // Show error visually on canvas
+      const canvas = canvasRef.current;
+      if (canvas) {
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.fillStyle = '#1a1a2e';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.fillStyle = '#ff4444';
+          ctx.font = '16px monospace';
+          ctx.fillText(`Render error: ${err}`, 20, 40);
+        }
+      }
     }
-
-    // Render directly into the visible canvas context
-    const offscreen = generateComposition(slices, dims.width, dims.height, options);
-    const ctx = canvas.getContext('2d')!;
-    ctx.clearRect(0, 0, dims.width, dims.height);
-    ctx.drawImage(offscreen, 0, 0);
   }, [setup, getDims, outputResolution, disabledSlices]);
 
   useEffect(() => {

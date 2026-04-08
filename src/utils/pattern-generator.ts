@@ -97,7 +97,7 @@ export interface GeneratorOptions {
   extraLogos: LogoInstance[];
   decorativeSettings: DecorativeSettings;
   globalOverlay: OverlaySource | null;
-  overlaySettings: import('../types').OverlaySettings;
+  overlaySettings: OverlaySettings;
   sliceOverlays: SliceOverlays;
   brandName: string;
   animationPreset?: AnimationPresetType;
@@ -127,7 +127,8 @@ export function generateComposition(
   options: GeneratorOptions,
 ): HTMLCanvasElement {
   const canvas = getReusableCanvas(width, height);
-  const ctx = canvas.getContext('2d')!;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error(`Failed to get 2d context for ${width}x${height} canvas`);
   renderCompositionInto(ctx, slices, width, height, options);
   return canvas;
 }
