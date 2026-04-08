@@ -81,3 +81,82 @@
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.2);
 }
+
+/* ─── Responsive Layout ─────────────────────────────────────── */
+
+/* Tablet: sidebar collapses to narrower width */
+@media (max-width: 1024px) {
+  .sidebar-responsive {
+    width: 280px !important;
+  }
+}
+
+/* Mobile: sidebar becomes overlay */
+@media (max-width: 768px) {
+  .sidebar-responsive {
+    position: fixed;
+    top: 56px;
+    left: 0;
+    bottom: 0;
+    width: 300px !important;
+    z-index: 50;
+    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.5);
+  }
+
+  .preview-responsive {
+    padding: 8px !important;
+  }
+}
+
+/* Small mobile */
+@media (max-width: 480px) {
+  .sidebar-responsive {
+    width: 100% !important;
+  }
+}
+
+/* High DPI / Retina optimizations */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  img[style*="crisp-edges"] {
+    image-rendering: -webkit-optimize-contrast;
+  }
+}
+
+/* Ensure preview scales properly on window resize */
+.preview-responsive img {
+  transition: max-width 0.2s ease, max-height 0.2s ease;
+}
+
+/* Range input track styling for all browsers */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 3px;
+  outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #06b6d4;
+  cursor: pointer;
+  border: 2px solid #0e7490;
+  transition: transform 0.15s ease;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #06b6d4;
+  cursor: pointer;
+  border: 2px solid #0e7490;
+}

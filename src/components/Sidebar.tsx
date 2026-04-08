@@ -1,23 +1,36 @@
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useState } from 'react';
 import {
   Upload, Download, Image as ImageIcon, Film, Grid3x3,
   Settings, Save, FolderOpen, Trash2, Eye, EyeOff, Tag,
+  Monitor, Layers, Palette, Play, Sparkles, ChevronDown, ChevronUp,
+  Move,
 } from 'lucide-react';
 import { useStore } from '../store';
-import { TEMPLATES, OUTPUT_RESOLUTIONS, TemplateType } from '../types';
-import { exportComposition } from './Preview';
+import {
+  TEMPLATES, OUTPUT_RESOLUTIONS, TemplateType, GRAPHIC_PRESETS,
+  GraphicPresetType, LOGO_POSITIONS, BLEND_MODES, ANIMATION_PRESETS,
+  VIDEO_PRESETS, EXPORT_FORMATS, LogoPosition, AnimationPresetType,
+  VideoPresetType, ExportFormat,
+} from '../types';
+import { exportComposition, exportVideo } from './Preview';
 
 export function Sidebar() {
   const sidebarOpen = useStore(s => s.sidebarOpen);
   if (!sidebarOpen) return null;
 
   return (
-    <aside className="w-80 bg-gray-900/95 border-r border-gray-700/50 overflow-y-auto shrink-0 flex flex-col">
+    <aside className="w-80 bg-gray-900/95 border-r border-gray-700/50 overflow-y-auto shrink-0 flex flex-col sidebar-responsive">
       <div className="flex flex-col gap-1 p-3">
         <ImportSection />
+        <ScreenNavigator />
+        <SliceManager />
         <TemplateSection />
+        <GraphicPresetSection />
         <SettingsSection />
         <BrandingSection />
+        <LogoSettingsSection />
+        <AnimationSection />
+        <VideoPresetSection />
         <PresetSection />
         <ExportSection />
       </div>
@@ -70,20 +83,117 @@ function ImportSection() {
             <span className="text-gray-400">Status</span>
             <span className="text-green-400 font-medium">{setup.slices.length} slices loaded</span>
           </div>
-          <div className="toggle-group w-full">
-            <button
-              onClick={() => setViewMode('output')}
-              className={`toggle-btn flex-1 text-xs ${viewMode === 'output' ? 'active' : ''}`}
-            >
-              Output
-            </button>
-            <button
-              onClick={() => setViewMode('input')}
-              className={`toggle-btn flex-1 text-xs ${viewMode === 'input' ? 'active' : ''}`}
-            >
-              Input
-            </button>
+          <div className="space-y-1">
+            <label className="text-[10px] text-gray-500 uppercase tracking-wider">Advanced View</label>
+            <div className="toggle-group w-full">
+              <button
+                onClick={() => setViewMode('output')}
+                className={`toggle-btn flex-1 text-xs ${viewMode === 'output' ? 'active' : ''}`}
+                title="Advanced Output: Final screen coordinates as mapped by Resolume"
+              >
+                Output (Screen)
+              </button>
+              <button
+                onClick={() => setViewMode('input')}
+                className={`toggle-btn flex-1 text-xs ${viewMode === 'input' ? 'active' : ''}`}
+                title="Advanced Input: Source composition coordinates before transformation"
+              >
+                Input (Source)
+              </button>
+            </div>
+            <p className="text-[10px] text-gray-500 mt-1">
+              {viewMode === 'output'
+                ? 'Output: Final screen mapping positions (OutputRect)'
+                : 'Input: Source composition coordinates (InputRect)'}
+            </p>
           </div>
+        </div>
+      )}
+    </Section>
+  );
+}
+
+// ─── Screen Navigator ───────────────────────────────────────────
+
+function ScreenNavigator() {
+  const screens = useStore(s => s.screens);
+  const activeIndex = useStore(s => s.activeScreenIndex);
+  const setActiveScreen = useStore(s => s.setActiveScreen);
+
+  if (screens.length <= 1) return null;
+
+  return (
+    <Section title="Screens" icon={<Monitor size={16} />}>
+      <div className="space-y-1">
+        {screens.map((screen, i) => (
+          <button
+            key={screen.id}
+            onClick={() => setActiveScreen(i)}
+            className={`w-full text-left px-2.5 py-2 rounded-lg text-xs transition-all flex items-center justify-between ${
+              i === activeIndex
+                ? 'bg-cyan-500/20 border border-cyan-500/50 text-cyan-300'
+                : 'bg-gray-800/50 border border-gray-700 text-gray-400 hover:border-gray-500'
+            }`}
+          >
+            <span className="font-medium truncate">{screen.name}</span>
+            <span className="text-[10px] opacity-60">{screen.slices.length} slices | {screen.compositionSize.width}x{screen.compositionSize.height}</span>
+          </button>
+        ))}
+      </div>
+    </Section>
+  );
+}
+
+// ─── Slice Manager ──────────────────────────────────────────────
+
+function SliceManager() {
+  const setup = useStore(s => s.resolumeSetup);
+  const disabledSlices = useStore(s => s.disabledSlices);
+  const toggleSlice = useStore(s => s.toggleSlice);
+  const enableAll = useStore(s => s.enableAllSlices);
+  const disableAll = useStore(s => s.disableAllSlices);
+  const [expanded, setExpanded] = useState(false);
+
+  if (!setup || setup.slices.length === 0) return null;
+
+  const activeCount = setup.slices.length - disabledSlices.size;
+
+  return (
+    <Section title={`Slices (${activeCount}/${setup.slices.length})`} icon={<Layers size={16} />}>
+      <div className="flex gap-1.5 mb-2">
+        <button onClick={enableAll} className="flex-1 btn btn-secondary text-[10px] py-1">
+          Enable All
+        </button>
+        <button onClick={disableAll} className="flex-1 btn btn-secondary text-[10px] py-1">
+          Disable All
+        </button>
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="btn btn-secondary text-[10px] py-1 px-2"
+        >
+          {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+        </button>
+      </div>
+      {expanded && (
+        <div className="space-y-1 max-h-40 overflow-y-auto">
+          {setup.slices.map(slice => {
+            const disabled = disabledSlices.has(slice.id);
+            return (
+              <button
+                key={slice.id}
+                onClick={() => toggleSlice(slice.id)}
+                className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-all ${
+                  disabled
+                    ? 'bg-gray-800/30 text-gray-600 line-through'
+                    : 'bg-gray-800/50 text-gray-300 hover:bg-gray-700/50'
+                }`}
+              >
+                {disabled ? <EyeOff size={12} /> : <Eye size={12} className="text-cyan-400" />}
+                <span className="truncate flex-1 text-left">{slice.name}</span>
+                <span className="text-[10px] opacity-50">{slice.width}x{slice.height}</span>
+              </button>
+            );
+          })}
         </div>
       )}
     </Section>
@@ -119,6 +229,38 @@ function TemplateSection() {
   );
 }
 
+// ─── Graphic Presets ────────────────────────────────────────────
+
+function GraphicPresetSection() {
+  const graphicPreset = useStore(s => s.graphicPreset);
+  const setGraphicPreset = useStore(s => s.setGraphicPreset);
+
+  return (
+    <Section title="Graphic Preset" icon={<Palette size={16} />}>
+      <div className="grid grid-cols-2 gap-2">
+        {GRAPHIC_PRESETS.map(p => (
+          <button
+            key={p.id}
+            onClick={() => setGraphicPreset(p.id as GraphicPresetType)}
+            className={`p-2 rounded-lg border text-center transition-all text-xs ${
+              graphicPreset === p.id
+                ? 'border-purple-500 bg-purple-500/10 shadow-sm shadow-purple-500/20'
+                : 'border-gray-700 hover:border-gray-500 bg-gray-800/50'
+            }`}
+            title={p.description}
+          >
+            <div className="text-lg mb-0.5">{p.icon}</div>
+            <div className="text-gray-300 font-medium leading-tight text-[11px]">{p.name}</div>
+          </button>
+        ))}
+      </div>
+      <p className="text-[10px] text-gray-500 mt-1.5">
+        {GRAPHIC_PRESETS.find(p => p.id === graphicPreset)?.description}
+      </p>
+    </Section>
+  );
+}
+
 // ─── Settings ────────────────────────────────────────────────────
 
 function SettingsSection() {
@@ -138,7 +280,6 @@ function SettingsSection() {
 
   return (
     <Section title="Settings" icon={<Settings size={16} />}>
-      {/* Resolution */}
       <label className="text-xs text-gray-400 mb-1 block">Output Resolution</label>
       <select
         value={outputResolution.id}
@@ -173,7 +314,6 @@ function SettingsSection() {
         </div>
       )}
 
-      {/* Grid Size */}
       <label className="text-xs text-gray-400 mb-1 block mt-2">
         Grid Size: {gridSize}px
       </label>
@@ -184,7 +324,6 @@ function SettingsSection() {
         <span>Fine</span><span>Coarse</span>
       </div>
 
-      {/* Toggles */}
       <div className="flex gap-2 mt-3">
         <button
           onClick={() => setShowLabels(!showLabels)}
@@ -235,18 +374,12 @@ function BrandingSection() {
     if (!file) return;
 
     if (file.type.startsWith('video/')) {
-      // Video overlay: capture current frame
       const video = document.createElement('video');
       video.preload = 'metadata';
-      video.onloadeddata = () => {
-        video.currentTime = 0;
-      };
-      video.onseeked = () => {
-        setGlobalOverlay(video);
-      };
+      video.onloadeddata = () => { video.currentTime = 0; };
+      video.onseeked = () => { setGlobalOverlay(video); };
       video.src = URL.createObjectURL(file);
     } else {
-      // Image overlay
       const reader = new FileReader();
       reader.onload = (ev) => {
         const img = new Image();
@@ -275,6 +408,14 @@ function BrandingSection() {
         <ImageIcon size={14} />
         {logo ? 'Change Logo' : 'Upload Logo'}
       </button>
+      {logo && (
+        <button
+          onClick={() => setLogo(null)}
+          className="w-full btn btn-secondary text-[10px] py-1 flex items-center justify-center gap-1 mb-2 text-red-400 hover:text-red-300"
+        >
+          <Trash2 size={10} /> Remove Logo
+        </button>
+      )}
 
       <input ref={overlayRef} type="file" accept="image/*,video/mp4,video/webm,video/quicktime" onChange={handleOverlay} className="hidden" />
       <button
@@ -284,6 +425,183 @@ function BrandingSection() {
         <Film size={14} />
         {globalOverlay ? 'Change Overlay' : 'Upload Overlay (img/video)'}
       </button>
+    </Section>
+  );
+}
+
+// ─── Logo Settings ──────────────────────────────────────────────
+
+function LogoSettingsSection() {
+  const logo = useStore(s => s.logo);
+  const logoSettings = useStore(s => s.logoSettings);
+  const setLogoSettings = useStore(s => s.setLogoSettings);
+  const [expanded, setExpanded] = useState(false);
+
+  if (!logo) return null;
+
+  return (
+    <Section title="Logo Settings" icon={<Move size={16} />}>
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center justify-between text-xs text-gray-400 mb-2"
+      >
+        <span>Position & Appearance</span>
+        {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+      </button>
+
+      {/* Position Grid - always visible */}
+      <div className="grid grid-cols-3 gap-1 mb-3">
+        {LOGO_POSITIONS.map(pos => (
+          <button
+            key={pos.id}
+            onClick={() => setLogoSettings({ position: pos.id as LogoPosition })}
+            className={`py-1.5 rounded text-[10px] font-bold transition-all ${
+              logoSettings.position === pos.id
+                ? 'bg-cyan-500 text-white'
+                : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+            }`}
+          >
+            {pos.label}
+          </button>
+        ))}
+      </div>
+
+      {expanded && (
+        <div className="space-y-2.5">
+          {/* Size */}
+          <div>
+            <label className="text-[10px] text-gray-500 flex justify-between">
+              <span>Size</span><span>{logoSettings.size}%</span>
+            </label>
+            <input type="range" min={2} max={80} value={logoSettings.size}
+              onChange={e => setLogoSettings({ size: parseInt(e.target.value) })}
+              className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-cyan-500" />
+          </div>
+
+          {/* Opacity */}
+          <div>
+            <label className="text-[10px] text-gray-500 flex justify-between">
+              <span>Opacity</span><span>{logoSettings.opacity}%</span>
+            </label>
+            <input type="range" min={5} max={100} value={logoSettings.opacity}
+              onChange={e => setLogoSettings({ opacity: parseInt(e.target.value) })}
+              className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-cyan-500" />
+          </div>
+
+          {/* Rotation */}
+          <div>
+            <label className="text-[10px] text-gray-500 flex justify-between">
+              <span>Rotation</span><span>{logoSettings.rotation} deg</span>
+            </label>
+            <input type="range" min={0} max={360} value={logoSettings.rotation}
+              onChange={e => setLogoSettings({ rotation: parseInt(e.target.value) })}
+              className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-cyan-500" />
+          </div>
+
+          {/* Padding */}
+          <div>
+            <label className="text-[10px] text-gray-500 flex justify-between">
+              <span>Padding</span><span>{logoSettings.padding}px</span>
+            </label>
+            <input type="range" min={0} max={100} value={logoSettings.padding}
+              onChange={e => setLogoSettings({ padding: parseInt(e.target.value) })}
+              className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-cyan-500" />
+          </div>
+
+          {/* Blend Mode */}
+          <div>
+            <label className="text-[10px] text-gray-500 mb-1 block">Blend Mode</label>
+            <select
+              value={logoSettings.blendMode}
+              onChange={e => setLogoSettings({ blendMode: e.target.value as GlobalCompositeOperation })}
+              className="input text-xs"
+            >
+              {BLEND_MODES.map(b => (
+                <option key={b.id} value={b.id}>{b.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
+    </Section>
+  );
+}
+
+// ─── Animation Presets ──────────────────────────────────────────
+
+function AnimationSection() {
+  const logo = useStore(s => s.logo);
+  const animationPreset = useStore(s => s.animationPreset);
+  const setAnimationPreset = useStore(s => s.setAnimationPreset);
+  const animationSpeed = useStore(s => s.animationSpeed);
+  const setAnimationSpeed = useStore(s => s.setAnimationSpeed);
+
+  if (!logo) return null;
+
+  return (
+    <Section title="Logo Animation" icon={<Sparkles size={16} />}>
+      <div className="grid grid-cols-3 gap-1">
+        {ANIMATION_PRESETS.map(p => (
+          <button
+            key={p.id}
+            onClick={() => setAnimationPreset(p.id as AnimationPresetType)}
+            className={`py-1.5 px-1 rounded text-[10px] transition-all ${
+              animationPreset === p.id
+                ? 'bg-pink-500/20 border border-pink-500/50 text-pink-300'
+                : 'bg-gray-800/50 border border-gray-700 text-gray-400 hover:border-gray-500'
+            }`}
+            title={p.description}
+          >
+            {p.name}
+          </button>
+        ))}
+      </div>
+      {animationPreset !== 'none' && (
+        <div className="mt-2">
+          <label className="text-[10px] text-gray-500 flex justify-between">
+            <span>Speed</span><span>{animationSpeed}x</span>
+          </label>
+          <input type="range" min={25} max={400} step={25} value={animationSpeed * 100}
+            onChange={e => setAnimationSpeed(parseInt(e.target.value) / 100)}
+            className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-pink-500" />
+        </div>
+      )}
+    </Section>
+  );
+}
+
+// ─── Video Content Presets ──────────────────────────────────────
+
+function VideoPresetSection() {
+  const videoPreset = useStore(s => s.videoPreset);
+  const setVideoPreset = useStore(s => s.setVideoPreset);
+  const setup = useStore(s => s.resolumeSetup);
+
+  if (!setup) return null;
+
+  return (
+    <Section title="Video Content" icon={<Play size={16} />}>
+      <div className="grid grid-cols-3 gap-1">
+        {VIDEO_PRESETS.map(p => (
+          <button
+            key={p.id}
+            onClick={() => setVideoPreset(p.id as VideoPresetType)}
+            className={`py-1.5 px-1 rounded text-[10px] transition-all ${
+              videoPreset === p.id
+                ? 'bg-green-500/20 border border-green-500/50 text-green-300'
+                : 'bg-gray-800/50 border border-gray-700 text-gray-400 hover:border-gray-500'
+            }`}
+            title={p.description}
+          >
+            {p.name}
+          </button>
+        ))}
+      </div>
+      {videoPreset !== 'none' && (
+        <p className="text-[10px] text-gray-500 mt-1.5">
+          {VIDEO_PRESETS.find(p => p.id === videoPreset)?.description} - Export as video for loop
+        </p>
+      )}
     </Section>
   );
 }
@@ -369,20 +687,61 @@ function ExportSection() {
   const setup = useStore(s => s.resolumeSetup);
   const getDims = useStore(s => s.getOutputDimensions);
   const viewMode = useStore(s => s.viewMode);
+  const exportFormat = useStore(s => s.exportFormat);
+  const setExportFormat = useStore(s => s.setExportFormat);
+  const videoPreset = useStore(s => s.videoPreset);
+  const animationPreset = useStore(s => s.animationPreset);
+  const isExporting = useStore(s => s.isExporting);
 
   if (!setup) return null;
 
   const dims = getDims();
+  const hasAnimation = videoPreset !== 'none' || animationPreset !== 'none';
 
   return (
     <Section title="Export" icon={<Download size={16} />}>
+      {hasAnimation && (
+        <div className="mb-2">
+          <label className="text-[10px] text-gray-500 mb-1 block">Export Format</label>
+          <div className="grid grid-cols-2 gap-1">
+            {EXPORT_FORMATS.map(f => (
+              <button
+                key={f.id}
+                onClick={() => setExportFormat(f.id as ExportFormat)}
+                className={`py-1.5 rounded text-[10px] font-medium transition-all ${
+                  exportFormat === f.id
+                    ? 'bg-green-500/20 border border-green-500/50 text-green-300'
+                    : 'bg-gray-800/50 border border-gray-700 text-gray-400 hover:border-gray-500'
+                }`}
+              >
+                {f.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <button
         onClick={exportComposition}
-        className="w-full btn btn-success flex items-center justify-center gap-2 py-3 text-sm font-semibold"
+        className="w-full btn btn-success flex items-center justify-center gap-2 py-2.5 text-sm font-semibold mb-1.5"
       >
-        <Download size={18} />
+        <Download size={16} />
         Export PNG ({viewMode === 'output' ? 'Out' : 'In'} {dims.width}x{dims.height})
       </button>
+
+      {hasAnimation && (
+        <button
+          onClick={exportVideo}
+          disabled={isExporting}
+          className="w-full btn btn-primary flex items-center justify-center gap-2 py-2.5 text-sm font-semibold"
+        >
+          {isExporting ? (
+            <><div className="spinner w-4 h-4" /> Rendering...</>
+          ) : (
+            <><Film size={16} /> Export Video Loop</>
+          )}
+        </button>
+      )}
     </Section>
   );
 }

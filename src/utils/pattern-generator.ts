@@ -1,4 +1,4 @@
-import { TemplateType, SliceData, OverlaySource, SliceOverlays } from '../types';
+import { TemplateType, GraphicPresetType, SliceData, OverlaySource, SliceOverlays, LogoSettings, AnimationPresetType, VideoPresetType } from '../types';
 
 // ─── SMPTE Color Constants ──────────────────────────────────────
 
@@ -6,31 +6,50 @@ const SMPTE_75 = ['#BFBFBF', '#BFBF00', '#00BFBF', '#00BF00', '#BF00BF', '#BF000
 const SMPTE_COMPLEMENT = ['#0000BF', '#131313', '#BF00BF', '#131313', '#00BFBF', '#131313', '#BFBFBF'];
 const SMPTE_100 = ['#FFFFFF', '#FFFF00', '#00FFFF', '#00FF00', '#FF00FF', '#FF0000', '#0000FF'];
 
-// ─── Slice Color Palette (for LED Checkerboard & Solid ID) ──────
+// ─── Kawaii Core Colors ─────────────────────────────────────────
+
+const KAWAII_COLORS = ['#FFB7C5', '#B5EAEA', '#E8D5FF', '#FFEAA7', '#C4FAF8', '#FFD3E0', '#D5AAFF', '#A8E6CF'];
+const KAWAII_BG = '#1a1025';
+
+// ─── Frutiger Aero Colors ───────────────────────────────────────
+
+const FRUTIGER_COLORS = ['#00B4D8', '#0096C7', '#48CAE4', '#90E0EF', '#ADE8F4', '#CAF0F8'];
+const FRUTIGER_GREEN = ['#52B788', '#74C69D', '#95D5B2', '#B7E4C7', '#D8F3DC'];
+
+// ─── PS1 Retro Colors ──────────────────────────────────────────
+
+const PS1_COLORS = ['#808080', '#C0C0C0', '#404040', '#008080', '#800080', '#808000'];
+
+// ─── Slice Color Palette ───────────────────────────────────────
 
 const SLICE_HUES = [330, 180, 120, 0, 240, 60, 30, 270, 150, 210];
 
 function sliceColor(index: number): string {
   const hue = SLICE_HUES[index % SLICE_HUES.length];
-  return `hsl(${hue}, 90%, 55%)`;
+  return "hsl(" + hue + ", 90%, 55%)";
 }
 
 function sliceColorDark(index: number): string {
   const hue = SLICE_HUES[index % SLICE_HUES.length];
-  return `hsl(${hue}, 70%, 20%)`;
+  return "hsl(" + hue + ", 70%, 20%)";
 }
 
 // ─── Main Generator ─────────────────────────────────────────────
 
 export interface GeneratorOptions {
   template: TemplateType;
+  graphicPreset: GraphicPresetType;
   gridSize: number;
   showLabels: boolean;
   showSafeZones: boolean;
   logo: HTMLImageElement | null;
+  logoSettings: LogoSettings;
   globalOverlay: OverlaySource | null;
   sliceOverlays: SliceOverlays;
   brandName: string;
+  animationPreset?: AnimationPresetType;
+  videoPreset?: VideoPresetType;
+  animationProgress?: number; // 0-1 normalized progress for animation frame
 }
 
 export function generateComposition(
@@ -44,9 +63,12 @@ export function generateComposition(
   canvas.height = height;
   const ctx = canvas.getContext('2d')!;
 
-  // Black background
-  ctx.fillStyle = '#000000';
+  // Background based on graphic preset
+  ctx.fillStyle = getPresetBackground(options.graphicPreset);
   ctx.fillRect(0, 0, width, height);
+
+  // Apply graphic preset background effects
+  drawPresetBackground(ctx, width, height, options);
 
   // Draw each slice
   slices.forEach((slice, index) => {
@@ -55,28 +77,194 @@ export function generateComposition(
     ctx.rect(slice.x, slice.y, slice.width, slice.height);
     ctx.clip();
 
-    // Black fill for slice
-    ctx.fillStyle = '#000000';
+    // Slice background
+    ctx.fillStyle = getPresetBackground(options.graphicPreset);
     ctx.fillRect(slice.x, slice.y, slice.width, slice.height);
 
     // Template-specific pattern
     drawTemplate(ctx, slice, index, options);
 
+    // Graphic preset overlay effects
+    drawPresetOverlayEffects(ctx, slice, options);
+
+    // Video preset animation frame
+    if (options.videoPreset && options.videoPreset !== 'none' && options.animationProgress !== undefined) {
+      drawVideoPresetFrame(ctx, slice, options.videoPreset, options.animationProgress);
+    }
+
     ctx.restore();
 
-    // Border (outside clip)
-    drawSliceBorder(ctx, slice);
+    // Border
+    drawSliceBorder(ctx, slice, options.graphicPreset);
 
-    // Overlay (logo / video / image)
+    // Overlay
     const overlay = options.sliceOverlays[slice.id] || options.globalOverlay;
     if (overlay) drawOverlay(ctx, slice, overlay);
-    if (options.logo) drawLogo(ctx, slice, options.logo);
+
+    // Logo with positioning
+    if (options.logo) drawLogo(ctx, slice, options.logo, options.logoSettings, options.animationPreset, options.animationProgress);
 
     // Labels
-    if (options.showLabels) drawLabels(ctx, slice, options.brandName);
+    if (options.showLabels) drawLabels(ctx, slice, options.brandName, options.graphicPreset);
   });
 
   return canvas;
+}
+
+function getPresetBackground(preset: GraphicPresetType): string {
+  switch (preset) {
+    case 'kawaii-core': return '#1a1025';
+    case 'frutiger-aero': return '#0a1628';
+    case 'retro-ps1': return '#000000';
+    default: return '#000000';
+  }
+}
+
+// ─── Preset Background Effects ──────────────────────────────────
+
+function drawPresetBackground(ctx: CanvasRenderingContext2D, w: number, h: number, options: GeneratorOptions) {
+  const preset = options.graphicPreset;
+  if (preset === 'kawaii-core') {
+    // Soft pastel gradient wash
+    const grad = ctx.createLinearGradient(0, 0, w, h);
+    grad.addColorStop(0, 'rgba(255,183,197,0.05)');
+    grad.addColorStop(0.5, 'rgba(181,234,234,0.05)');
+    grad.addColorStop(1, 'rgba(232,213,255,0.05)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, w, h);
+  } else if (preset === 'frutiger-aero') {
+    // Sky gradient background
+    const grad = ctx.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, 'rgba(0,180,216,0.08)');
+    grad.addColorStop(0.5, 'rgba(144,224,239,0.04)');
+    grad.addColorStop(1, 'rgba(82,183,136,0.06)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, w, h);
+  } else if (preset === 'retro-ps1') {
+    // Dark dithered background - subtle noise pattern
+    const imgData = ctx.getImageData(0, 0, w, h);
+    const data = imgData.data;
+    for (let i = 0; i < data.length; i += 4) {
+      const noise = Math.random() * 8;
+      data[i] = noise;
+      data[i + 1] = noise;
+      data[i + 2] = noise;
+      data[i + 3] = 255;
+    }
+    ctx.putImageData(imgData, 0, 0);
+  }
+}
+
+// ─── Preset Overlay Effects (per-slice) ─────────────────────────
+
+function drawPresetOverlayEffects(ctx: CanvasRenderingContext2D, slice: SliceData, options: GeneratorOptions) {
+  const { x, y, width, height } = slice;
+  const preset = options.graphicPreset;
+
+  if (preset === 'retro-ps1') {
+    // CRT scanlines
+    ctx.fillStyle = 'rgba(0,0,0,0.15)';
+    for (let sy = 0; sy < height; sy += 3) {
+      ctx.fillRect(x, y + sy, width, 1);
+    }
+    // Slight vignette
+    const vignette = ctx.createRadialGradient(
+      x + width / 2, y + height / 2, Math.min(width, height) * 0.3,
+      x + width / 2, y + height / 2, Math.max(width, height) * 0.7
+    );
+    vignette.addColorStop(0, 'rgba(0,0,0,0)');
+    vignette.addColorStop(1, 'rgba(0,0,0,0.4)');
+    ctx.fillStyle = vignette;
+    ctx.fillRect(x, y, width, height);
+    // Color aberration simulation - thin colored edges
+    ctx.strokeStyle = 'rgba(255,0,0,0.06)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x + 1, y + 1, width - 2, height - 2);
+    ctx.strokeStyle = 'rgba(0,0,255,0.06)';
+    ctx.strokeRect(x - 1, y - 1, width + 2, height + 2);
+  } else if (preset === 'kawaii-core') {
+    // Soft glow overlay
+    const glow = ctx.createRadialGradient(
+      x + width / 2, y + height / 2, 0,
+      x + width / 2, y + height / 2, Math.max(width, height) * 0.5
+    );
+    glow.addColorStop(0, 'rgba(255,183,197,0.08)');
+    glow.addColorStop(0.5, 'rgba(181,234,234,0.04)');
+    glow.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(x, y, width, height);
+    // Sparkle/star decorations in corners
+    drawKawaiiStars(ctx, slice);
+  } else if (preset === 'frutiger-aero') {
+    // Glossy shine line
+    const shine = ctx.createLinearGradient(x, y, x, y + height * 0.4);
+    shine.addColorStop(0, 'rgba(255,255,255,0.08)');
+    shine.addColorStop(0.5, 'rgba(255,255,255,0.03)');
+    shine.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = shine;
+    ctx.fillRect(x, y, width, height * 0.4);
+    // Translucent bubbles
+    drawAeroBubbles(ctx, slice);
+  }
+}
+
+function drawKawaiiStars(ctx: CanvasRenderingContext2D, slice: SliceData) {
+  const { x, y, width, height } = slice;
+  const starSize = Math.min(width, height) * 0.02;
+  const positions = [
+    [x + width * 0.1, y + height * 0.1],
+    [x + width * 0.9, y + height * 0.15],
+    [x + width * 0.85, y + height * 0.85],
+    [x + width * 0.15, y + height * 0.9],
+    [x + width * 0.5, y + height * 0.05],
+  ];
+  ctx.save();
+  positions.forEach(([sx, sy], i) => {
+    ctx.fillStyle = KAWAII_COLORS[i % KAWAII_COLORS.length];
+    ctx.globalAlpha = 0.3;
+    // 4-point star
+    ctx.beginPath();
+    ctx.moveTo(sx, sy - starSize);
+    ctx.lineTo(sx + starSize * 0.3, sy - starSize * 0.3);
+    ctx.lineTo(sx + starSize, sy);
+    ctx.lineTo(sx + starSize * 0.3, sy + starSize * 0.3);
+    ctx.lineTo(sx, sy + starSize);
+    ctx.lineTo(sx - starSize * 0.3, sy + starSize * 0.3);
+    ctx.lineTo(sx - starSize, sy);
+    ctx.lineTo(sx - starSize * 0.3, sy - starSize * 0.3);
+    ctx.closePath();
+    ctx.fill();
+  });
+  ctx.restore();
+}
+
+function drawAeroBubbles(ctx: CanvasRenderingContext2D, slice: SliceData) {
+  const { x, y, width, height } = slice;
+  const bubblePositions = [
+    { cx: x + width * 0.2, cy: y + height * 0.3, r: Math.min(width, height) * 0.04 },
+    { cx: x + width * 0.7, cy: y + height * 0.2, r: Math.min(width, height) * 0.025 },
+    { cx: x + width * 0.8, cy: y + height * 0.7, r: Math.min(width, height) * 0.035 },
+    { cx: x + width * 0.35, cy: y + height * 0.8, r: Math.min(width, height) * 0.02 },
+  ];
+  ctx.save();
+  bubblePositions.forEach(({ cx, cy, r }) => {
+    // Bubble body
+    const bubbleGrad = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.3, r * 0.1, cx, cy, r);
+    bubbleGrad.addColorStop(0, 'rgba(255,255,255,0.12)');
+    bubbleGrad.addColorStop(0.7, 'rgba(0,180,216,0.06)');
+    bubbleGrad.addColorStop(1, 'rgba(0,150,199,0.02)');
+    ctx.fillStyle = bubbleGrad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fill();
+    // Highlight
+    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.stroke();
+  });
+  ctx.restore();
 }
 
 // ─── Template Router ────────────────────────────────────────────
@@ -114,10 +302,15 @@ function drawTemplate(
 function drawSMPTE(ctx: CanvasRenderingContext2D, slice: SliceData, options: GeneratorOptions) {
   const { x, y, width, height } = slice;
   const barWidth = width / 7;
+  const preset = options.graphicPreset;
+
+  const colors75 = preset === 'kawaii-core' ? KAWAII_COLORS.slice(0, 7) :
+                   preset === 'frutiger-aero' ? [...FRUTIGER_COLORS, FRUTIGER_GREEN[0]] :
+                   preset === 'retro-ps1' ? PS1_COLORS.concat(['#606060']) : SMPTE_75;
 
   // Top section: 75% color bars (67% of height)
   const topH = height * 0.67;
-  SMPTE_75.forEach((color, i) => {
+  colors75.forEach((color, i) => {
     ctx.fillStyle = color;
     ctx.fillRect(x + i * barWidth, y, barWidth + 1, topH);
   });
@@ -152,14 +345,15 @@ function drawSMPTE(ctx: CanvasRenderingContext2D, slice: SliceData, options: Gen
   });
 
   // Grid overlay
-  drawGrid(ctx, slice, options.gridSize, 'rgba(255,255,255,0.08)');
+  drawGrid(ctx, slice, options.gridSize, preset === 'kawaii-core' ? 'rgba(255,183,197,0.1)' : 'rgba(255,255,255,0.08)');
 
   // Safe zones
   if (options.showSafeZones) {
     const actionSafe = Math.min(width, height) * 0.05;
     const titleSafe = Math.min(width, height) * 0.1;
+    const safeColor = preset === 'kawaii-core' ? 'rgba(255,183,197,0.3)' : 'rgba(255,255,255,0.3)';
 
-    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.strokeStyle = safeColor;
     ctx.lineWidth = 1;
     ctx.setLineDash([8, 4]);
     ctx.strokeRect(x + actionSafe, y + actionSafe, width - actionSafe * 2, height - actionSafe * 2);
@@ -168,8 +362,7 @@ function drawSMPTE(ctx: CanvasRenderingContext2D, slice: SliceData, options: Gen
     ctx.setLineDash([]);
   }
 
-  // Center crosshair
-  drawCrosshair(ctx, slice, '#FFFFFF', 0.08);
+  drawCrosshair(ctx, slice, preset === 'kawaii-core' ? '#FFB7C5' : '#FFFFFF', 0.08);
 }
 
 // ─── Template 2: Convergence ────────────────────────────────────
@@ -178,12 +371,16 @@ function drawConvergence(ctx: CanvasRenderingContext2D, slice: SliceData, option
   const { x, y, width, height } = slice;
   const cx = x + width / 2;
   const cy = y + height / 2;
+  const preset = options.graphicPreset;
 
-  // Main grid
-  drawGrid(ctx, slice, options.gridSize, 'rgba(255,255,255,0.2)');
+  const gridColor = preset === 'kawaii-core' ? 'rgba(255,183,197,0.2)' :
+                    preset === 'frutiger-aero' ? 'rgba(0,180,216,0.2)' :
+                    preset === 'retro-ps1' ? 'rgba(0,255,0,0.15)' : 'rgba(255,255,255,0.2)';
+
+  drawGrid(ctx, slice, options.gridSize, gridColor);
 
   // Diagonal grid
-  ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+  ctx.strokeStyle = gridColor.replace('0.2', '0.1');
   ctx.lineWidth = 0.5;
   const diagStep = options.gridSize;
   for (let d = -width - height; d <= width + height; d += diagStep) {
@@ -217,7 +414,10 @@ function drawConvergence(ctx: CanvasRenderingContext2D, slice: SliceData, option
   const maxR = Math.min(width, height) * 0.35;
   for (let i = 1; i <= 7; i++) {
     const r = (maxR / 7) * i;
-    ctx.strokeStyle = i === 4 ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.15)';
+    const circleColor = preset === 'kawaii-core' ? `rgba(255,183,197,${i === 4 ? 0.5 : 0.15})` :
+                        preset === 'frutiger-aero' ? `rgba(0,180,216,${i === 4 ? 0.5 : 0.15})` :
+                        i === 4 ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.15)';
+    ctx.strokeStyle = circleColor;
     ctx.lineWidth = i === 7 ? 2 : 1;
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
@@ -226,21 +426,18 @@ function drawConvergence(ctx: CanvasRenderingContext2D, slice: SliceData, option
 
   // RGB center crosshair
   const crossLen = Math.min(width, height) * 0.12;
-  // Red horizontal
-  ctx.strokeStyle = '#FF0000';
+  ctx.strokeStyle = preset === 'retro-ps1' ? '#00FF00' : '#FF0000';
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(cx - crossLen, cy);
   ctx.lineTo(cx + crossLen, cy);
   ctx.stroke();
-  // Green vertical
-  ctx.strokeStyle = '#00FF00';
+  ctx.strokeStyle = preset === 'retro-ps1' ? '#00FF00' : '#00FF00';
   ctx.beginPath();
   ctx.moveTo(cx, cy - crossLen);
   ctx.lineTo(cx, cy + crossLen);
   ctx.stroke();
-  // Blue circle at center
-  ctx.strokeStyle = '#0066FF';
+  ctx.strokeStyle = preset === 'retro-ps1' ? '#00FF00' : '#0066FF';
   ctx.lineWidth = 1.5;
   ctx.beginPath();
   ctx.arc(cx, cy, crossLen * 0.3, 0, Math.PI * 2);
@@ -259,12 +456,13 @@ function drawConvergence(ctx: CanvasRenderingContext2D, slice: SliceData, option
   });
 
   // Color bar strip at bottom
+  const stripColors = preset === 'kawaii-core' ? KAWAII_COLORS.slice(0, 7) : SMPTE_100;
   const stripH = Math.max(height * 0.04, 14);
   const stripW = width * 0.5;
   const stripX = x + (width - stripW) / 2;
   const stripY = y + height - stripH * 2.5;
-  const cw = stripW / SMPTE_100.length;
-  SMPTE_100.forEach((color, i) => {
+  const cw = stripW / stripColors.length;
+  stripColors.forEach((color, i) => {
     ctx.fillStyle = color;
     ctx.fillRect(stripX + i * cw, stripY, cw + 1, stripH);
   });
@@ -273,19 +471,14 @@ function drawConvergence(ctx: CanvasRenderingContext2D, slice: SliceData, option
 }
 
 function drawConvergenceTarget(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number) {
-  // Outer circle
   ctx.strokeStyle = 'rgba(255,255,255,0.4)';
   ctx.lineWidth = 1.5;
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
   ctx.stroke();
-
-  // Inner circle
   ctx.beginPath();
   ctx.arc(cx, cy, r * 0.5, 0, Math.PI * 2);
   ctx.stroke();
-
-  // RGB crosshairs (small)
   const s = r * 0.6;
   ctx.strokeStyle = '#FF0000';
   ctx.lineWidth = 1;
@@ -324,16 +517,10 @@ function drawCheckerboard(
     for (let col = 0; col < cols; col++) {
       const isLight = (row + col) % 2 === 0;
       ctx.fillStyle = isLight ? bright : dark;
-      ctx.fillRect(
-        x + col * cellSize,
-        y + row * cellSize,
-        cellSize + 1,
-        cellSize + 1,
-      );
+      ctx.fillRect(x + col * cellSize, y + row * cellSize, cellSize + 1, cellSize + 1);
     }
   }
 
-  // Center diamond marker
   const size = Math.min(width, height) * 0.08;
   const cx = x + width / 2;
   const cy = y + height / 2;
@@ -347,7 +534,6 @@ function drawCheckerboard(
   ctx.closePath();
   ctx.stroke();
 
-  // Inner crosshair
   ctx.strokeStyle = 'rgba(255,255,255,0.7)';
   ctx.lineWidth = 1;
   const cs = size * 0.5;
@@ -366,9 +552,13 @@ function drawGridMapping(ctx: CanvasRenderingContext2D, slice: SliceData, option
   const cellSize = options.gridSize;
   const cols = Math.ceil(width / cellSize);
   const rows = Math.ceil(height / cellSize);
+  const preset = options.graphicPreset;
 
-  // Grid lines
-  ctx.strokeStyle = '#00CCFF';
+  const lineColor = preset === 'kawaii-core' ? '#FFB7C5' :
+                    preset === 'frutiger-aero' ? '#48CAE4' :
+                    preset === 'retro-ps1' ? '#00FF00' : '#00CCFF';
+
+  ctx.strokeStyle = lineColor;
   ctx.lineWidth = 1;
   ctx.globalAlpha = 0.5;
   for (let gx = 0; gx <= width; gx += cellSize) {
@@ -385,13 +575,12 @@ function drawGridMapping(ctx: CanvasRenderingContext2D, slice: SliceData, option
   }
   ctx.globalAlpha = 1;
 
-  // Cell numbering
   const fontSize = Math.min(cellSize / 4.5, 14);
   if (fontSize >= 6) {
     ctx.font = `bold ${fontSize}px 'Courier New', monospace`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#00CCFF';
+    ctx.fillStyle = lineColor;
     ctx.globalAlpha = 0.6;
     for (let row = 0; row < rows; row++) {
       for (let col = 0; col < cols; col++) {
@@ -405,8 +594,8 @@ function drawGridMapping(ctx: CanvasRenderingContext2D, slice: SliceData, option
     ctx.globalAlpha = 1;
   }
 
-  // Intersection dots
-  ctx.fillStyle = '#FF00FF';
+  const dotColor = preset === 'kawaii-core' ? '#D5AAFF' : '#FF00FF';
+  ctx.fillStyle = dotColor;
   for (let gy = 0; gy <= height; gy += cellSize) {
     for (let gx = 0; gx <= width; gx += cellSize) {
       ctx.beginPath();
@@ -415,11 +604,8 @@ function drawGridMapping(ctx: CanvasRenderingContext2D, slice: SliceData, option
     }
   }
 
-  // Center crosshair
-  drawCrosshair(ctx, slice, '#FF0066', 0.1);
-
-  // Corner markers (yellow L-shapes)
-  drawCornerMarkers(ctx, slice, '#FFFF00');
+  drawCrosshair(ctx, slice, preset === 'kawaii-core' ? '#FFB7C5' : '#FF0066', 0.1);
+  drawCornerMarkers(ctx, slice, preset === 'kawaii-core' ? '#FFEAA7' : '#FFFF00');
 }
 
 // ─── Template 5: Focus & Geometry ───────────────────────────────
@@ -429,19 +615,20 @@ function drawGradientFocus(ctx: CanvasRenderingContext2D, slice: SliceData, opti
   const cx = x + width / 2;
   const cy = y + height / 2;
   const maxR = Math.min(width, height) * 0.4;
+  const preset = options.graphicPreset;
 
-  // Radial gradient sphere at center
+  const gradColor = preset === 'kawaii-core' ? 'rgba(255,183,197,0.3)' :
+                    preset === 'frutiger-aero' ? 'rgba(0,180,216,0.3)' : 'rgba(255,255,255,0.3)';
+
   const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR);
-  grad.addColorStop(0, 'rgba(255,255,255,0.3)');
-  grad.addColorStop(0.5, 'rgba(100,150,255,0.15)');
+  grad.addColorStop(0, gradColor);
+  grad.addColorStop(0.5, gradColor.replace('0.3', '0.15'));
   grad.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = grad;
   ctx.fillRect(x, y, width, height);
 
-  // Subtle grid
   drawGrid(ctx, slice, options.gridSize, 'rgba(255,255,255,0.08)');
 
-  // Alternating B/W concentric circles (focus test)
   for (let i = 20; i >= 1; i--) {
     const r = (maxR / 20) * i;
     ctx.fillStyle = i % 2 === 0 ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.2)';
@@ -450,7 +637,6 @@ function drawGradientFocus(ctx: CanvasRenderingContext2D, slice: SliceData, opti
     ctx.fill();
   }
 
-  // Radial lines from center (Siemens star style)
   const numLines = 36;
   ctx.strokeStyle = 'rgba(255,255,255,0.12)';
   ctx.lineWidth = 1;
@@ -462,10 +648,8 @@ function drawGradientFocus(ctx: CanvasRenderingContext2D, slice: SliceData, opti
     ctx.stroke();
   }
 
-  // Center precision crosshair
   drawCrosshair(ctx, slice, '#FF0000', 0.06);
 
-  // Corner focus targets (concentric rings)
   const cornerR = Math.min(width, height) * 0.06;
   const offset = cornerR * 2.5;
   const corners = [
@@ -483,7 +667,6 @@ function drawGradientFocus(ctx: CanvasRenderingContext2D, slice: SliceData, opti
       ctx.arc(ccx, ccy, r, 0, Math.PI * 2);
       ctx.stroke();
     }
-    // Small cross
     const s = cornerR * 0.3;
     ctx.strokeStyle = '#FF0000';
     ctx.lineWidth = 1;
@@ -495,18 +678,13 @@ function drawGradientFocus(ctx: CanvasRenderingContext2D, slice: SliceData, opti
     ctx.stroke();
   });
 
-  // Edge midpoint markers
   const ms = Math.min(width, height) * 0.025;
   ctx.strokeStyle = '#FFFF00';
   ctx.lineWidth = 1.5;
   ctx.globalAlpha = 0.6;
-  // Top
   ctx.beginPath(); ctx.moveTo(cx - ms, y); ctx.lineTo(cx + ms, y); ctx.stroke();
-  // Bottom
   ctx.beginPath(); ctx.moveTo(cx - ms, y + height); ctx.lineTo(cx + ms, y + height); ctx.stroke();
-  // Left
   ctx.beginPath(); ctx.moveTo(x, cy - ms); ctx.lineTo(x, cy + ms); ctx.stroke();
-  // Right
   ctx.beginPath(); ctx.moveTo(x + width, cy - ms); ctx.lineTo(x + width, cy + ms); ctx.stroke();
   ctx.globalAlpha = 1;
 }
@@ -515,10 +693,12 @@ function drawGradientFocus(ctx: CanvasRenderingContext2D, slice: SliceData, opti
 
 function drawMinimal(ctx: CanvasRenderingContext2D, slice: SliceData, options: GeneratorOptions) {
   const { x, y, width, height } = slice;
+  const preset = options.graphicPreset;
 
-  // Sparse major grid only
   const majorStep = options.gridSize * 2;
-  ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+  const gridColor = preset === 'kawaii-core' ? 'rgba(255,183,197,0.1)' :
+                    preset === 'frutiger-aero' ? 'rgba(0,180,216,0.1)' : 'rgba(255,255,255,0.1)';
+  ctx.strokeStyle = gridColor;
   ctx.lineWidth = 0.5;
   for (let gx = 0; gx <= width; gx += majorStep) {
     ctx.beginPath();
@@ -533,21 +713,147 @@ function drawMinimal(ctx: CanvasRenderingContext2D, slice: SliceData, options: G
     ctx.stroke();
   }
 
-  // Thin center crosshair
-  drawCrosshair(ctx, slice, '#FFFFFF', 0.06, 1);
+  drawCrosshair(ctx, slice, preset === 'kawaii-core' ? '#FFB7C5' : '#FFFFFF', 0.06, 1);
 
-  // Minimal corner marks
   const ms = Math.min(width, height) * 0.04;
   ctx.strokeStyle = 'rgba(255,255,255,0.35)';
   ctx.lineWidth = 1;
-  // TL
   ctx.beginPath(); ctx.moveTo(x, y + ms); ctx.lineTo(x, y); ctx.lineTo(x + ms, y); ctx.stroke();
-  // TR
   ctx.beginPath(); ctx.moveTo(x + width - ms, y); ctx.lineTo(x + width, y); ctx.lineTo(x + width, y + ms); ctx.stroke();
-  // BR
   ctx.beginPath(); ctx.moveTo(x + width, y + height - ms); ctx.lineTo(x + width, y + height); ctx.lineTo(x + width - ms, y + height); ctx.stroke();
-  // BL
   ctx.beginPath(); ctx.moveTo(x + ms, y + height); ctx.lineTo(x, y + height); ctx.lineTo(x, y + height - ms); ctx.stroke();
+}
+
+// ─── Video Preset Frame Drawing ─────────────────────────────────
+
+function drawVideoPresetFrame(
+  ctx: CanvasRenderingContext2D,
+  slice: SliceData,
+  preset: VideoPresetType,
+  progress: number,
+) {
+  const { x, y, width, height } = slice;
+
+  switch (preset) {
+    case 'color-cycle': {
+      const hue = Math.round(progress * 360);
+      ctx.fillStyle = `hsla(${hue}, 80%, 50%, 0.15)`;
+      ctx.fillRect(x, y, width, height);
+      break;
+    }
+    case 'gradient-sweep': {
+      const offset = progress * width * 2 - width;
+      const grad = ctx.createLinearGradient(x + offset, y, x + offset + width * 0.5, y + height);
+      grad.addColorStop(0, 'rgba(0,255,255,0.15)');
+      grad.addColorStop(0.5, 'rgba(255,0,255,0.1)');
+      grad.addColorStop(1, 'rgba(0,255,255,0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(x, y, width, height);
+      break;
+    }
+    case 'scanline-scroll': {
+      const scrollOffset = Math.round(progress * 40);
+      ctx.fillStyle = 'rgba(255,255,255,0.06)';
+      for (let sy = -40 + scrollOffset; sy < height; sy += 8) {
+        ctx.fillRect(x, y + sy, width, 2);
+      }
+      break;
+    }
+    case 'noise-static': {
+      const imgData = ctx.getImageData(x, y, width, height);
+      const data = imgData.data;
+      for (let i = 0; i < data.length; i += 16) {
+        const v = Math.random() * 40;
+        data[i] = Math.min(255, data[i] + v);
+        data[i + 1] = Math.min(255, data[i + 1] + v);
+        data[i + 2] = Math.min(255, data[i + 2] + v);
+      }
+      ctx.putImageData(imgData, x, y);
+      break;
+    }
+    case 'plasma': {
+      const t = progress * Math.PI * 2;
+      ctx.save();
+      ctx.globalAlpha = 0.12;
+      for (let py = 0; py < height; py += 8) {
+        for (let px = 0; px < width; px += 8) {
+          const v1 = Math.sin(px * 0.02 + t);
+          const v2 = Math.sin(py * 0.02 + t * 1.3);
+          const v3 = Math.sin((px + py) * 0.015 + t * 0.7);
+          const val = (v1 + v2 + v3) / 3;
+          const hue = Math.round((val + 1) * 180);
+          ctx.fillStyle = `hsl(${hue}, 90%, 55%)`;
+          ctx.fillRect(x + px, y + py, 8, 8);
+        }
+      }
+      ctx.restore();
+      break;
+    }
+    case 'rainbow-bars': {
+      const barW = width / 12;
+      const scrollX = progress * barW * 12;
+      ctx.save();
+      ctx.globalAlpha = 0.12;
+      for (let i = -1; i < 14; i++) {
+        const hue = ((i * 30) + progress * 360) % 360;
+        ctx.fillStyle = `hsl(${hue}, 90%, 55%)`;
+        ctx.fillRect(x + i * barW - scrollX % barW, y, barW + 1, height);
+      }
+      ctx.restore();
+      break;
+    }
+    case 'countdown-loop': {
+      const seconds = 5 - Math.floor(progress * 5);
+      const fraction = (progress * 5) % 1;
+      const cx = x + width / 2;
+      const cy = y + height / 2;
+      const r = Math.min(width, height) * 0.2;
+
+      // Arc countdown
+      ctx.save();
+      ctx.strokeStyle = 'rgba(0,255,255,0.5)';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + (1 - fraction) * Math.PI * 2);
+      ctx.stroke();
+
+      // Number
+      const numSize = r * 0.8;
+      ctx.font = `bold ${numSize}px 'Arial', sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = 'rgba(255,255,255,0.6)';
+      ctx.fillText(String(seconds), cx, cy);
+      ctx.restore();
+      break;
+    }
+    case 'waveform': {
+      const cx = x;
+      const cy = y + height / 2;
+      const amplitude = height * 0.2;
+      ctx.save();
+      ctx.strokeStyle = 'rgba(0,255,0,0.4)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let px = 0; px < width; px += 2) {
+        const wave = Math.sin((px / width) * Math.PI * 6 + progress * Math.PI * 2) * amplitude;
+        if (px === 0) ctx.moveTo(cx + px, cy + wave);
+        else ctx.lineTo(cx + px, cy + wave);
+      }
+      ctx.stroke();
+      // Second harmonic
+      ctx.strokeStyle = 'rgba(255,0,100,0.3)';
+      ctx.beginPath();
+      for (let px = 0; px < width; px += 2) {
+        const wave = Math.sin((px / width) * Math.PI * 10 + progress * Math.PI * 4) * amplitude * 0.5;
+        if (px === 0) ctx.moveTo(cx + px, cy + wave);
+        else ctx.lineTo(cx + px, cy + wave);
+      }
+      ctx.stroke();
+      ctx.restore();
+      break;
+    }
+  }
 }
 
 // ─── Shared Drawing Utilities ───────────────────────────────────
@@ -600,7 +906,6 @@ function drawCrosshair(
   ctx.lineTo(cx, cy + len);
   ctx.stroke();
 
-  // Inner detail
   ctx.shadowBlur = 0;
   ctx.strokeStyle = '#FFFFFF';
   ctx.lineWidth = 1;
@@ -630,20 +935,25 @@ function drawCornerMarkers(ctx: CanvasRenderingContext2D, slice: SliceData, colo
   ctx.globalAlpha = 1;
 }
 
-function drawSliceBorder(ctx: CanvasRenderingContext2D, slice: SliceData) {
+function drawSliceBorder(ctx: CanvasRenderingContext2D, slice: SliceData, preset: GraphicPresetType = 'default') {
   const { x, y, width, height } = slice;
   ctx.save();
 
-  // Outer glow
-  ctx.shadowColor = '#FFFFFF';
+  const borderColor = preset === 'kawaii-core' ? '#FFB7C5' :
+                      preset === 'frutiger-aero' ? '#48CAE4' :
+                      preset === 'retro-ps1' ? '#00FF00' : '#FFFFFF';
+  const accentColor = preset === 'kawaii-core' ? '#D5AAFF' :
+                      preset === 'frutiger-aero' ? '#90E0EF' :
+                      preset === 'retro-ps1' ? '#00FF00' : '#00FFFF';
+
+  ctx.shadowColor = borderColor;
   ctx.shadowBlur = 6;
-  ctx.strokeStyle = '#FFFFFF';
+  ctx.strokeStyle = borderColor;
   ctx.lineWidth = 2;
   ctx.strokeRect(x, y, width, height);
 
-  // Inner accent
   ctx.shadowBlur = 0;
-  ctx.strokeStyle = '#00FFFF';
+  ctx.strokeStyle = accentColor;
   ctx.lineWidth = 1;
   ctx.strokeRect(x + 2, y + 2, width - 4, height - 4);
 
@@ -654,7 +964,6 @@ function drawOverlay(ctx: CanvasRenderingContext2D, slice: SliceData, src: Overl
   const { x, y, width, height } = slice;
   const maxSize = Math.min(width, height) * 0.18;
 
-  // Get source dimensions
   const sw = src instanceof HTMLVideoElement ? src.videoWidth : src.naturalWidth;
   const sh = src instanceof HTMLVideoElement ? src.videoHeight : src.naturalHeight;
   if (!sw || !sh) return;
@@ -671,22 +980,101 @@ function drawOverlay(ctx: CanvasRenderingContext2D, slice: SliceData, src: Overl
   ctx.restore();
 }
 
-function drawLogo(ctx: CanvasRenderingContext2D, slice: SliceData, logo: HTMLImageElement) {
+// ─── Logo with Positioning & Animation ──────────────────────────
+
+function drawLogo(
+  ctx: CanvasRenderingContext2D,
+  slice: SliceData,
+  logo: HTMLImageElement,
+  settings: LogoSettings,
+  animPreset?: AnimationPresetType,
+  animProgress?: number,
+) {
   const { x, y, width, height } = slice;
-  const logoSize = Math.min(width, height) * 0.1;
+  const logoSize = Math.min(width, height) * (settings.size / 100);
   const ratio = Math.min(logoSize / logo.naturalWidth, logoSize / logo.naturalHeight);
-  const dw = logo.naturalWidth * ratio;
-  const dh = logo.naturalHeight * ratio;
+  let dw = logo.naturalWidth * ratio;
+  let dh = logo.naturalHeight * ratio;
+  const pad = settings.padding;
+
+  // Calculate position
+  let dx: number, dy: number;
+  switch (settings.position) {
+    case 'top-left':      dx = x + pad; dy = y + pad; break;
+    case 'top-center':    dx = x + (width - dw) / 2; dy = y + pad; break;
+    case 'top-right':     dx = x + width - dw - pad; dy = y + pad; break;
+    case 'center-left':   dx = x + pad; dy = y + (height - dh) / 2; break;
+    case 'center':        dx = x + (width - dw) / 2; dy = y + (height - dh) / 2; break;
+    case 'center-right':  dx = x + width - dw - pad; dy = y + (height - dh) / 2; break;
+    case 'bottom-left':   dx = x + pad; dy = y + height - dh - pad; break;
+    case 'bottom-center': dx = x + (width - dw) / 2; dy = y + height - dh - pad; break;
+    case 'bottom-right':  dx = x + width - dw - pad; dy = y + height - dh - pad; break;
+    default:              dx = x + width - dw - pad; dy = y + pad; break;
+  }
 
   ctx.save();
-  ctx.globalAlpha = 0.75;
-  ctx.drawImage(logo, x + width - dw - 10, y + 10, dw, dh);
+
+  // Animation transforms
+  let opacity = settings.opacity / 100;
+  let offsetX = 0, offsetY = 0, scale = 1, rotation = settings.rotation;
+
+  if (animPreset && animPreset !== 'none' && animProgress !== undefined) {
+    const t = animProgress;
+    const pi2 = Math.PI * 2;
+    switch (animPreset) {
+      case 'pulse':
+        scale = 1 + Math.sin(t * pi2) * 0.15;
+        break;
+      case 'rotate':
+        rotation = settings.rotation + t * 360;
+        break;
+      case 'bounce':
+        offsetY = -Math.abs(Math.sin(t * pi2)) * dh * 0.3;
+        break;
+      case 'fade-in-out':
+        opacity *= 0.3 + Math.sin(t * pi2) * 0.7;
+        break;
+      case 'slide-horizontal':
+        offsetX = Math.sin(t * pi2) * width * 0.05;
+        break;
+      case 'slide-vertical':
+        offsetY = Math.sin(t * pi2) * height * 0.05;
+        break;
+      case 'zoom-in-out':
+        scale = 0.7 + Math.sin(t * pi2) * 0.3 + 0.3;
+        break;
+      case 'glitch':
+        offsetX = (Math.random() - 0.5) * 6;
+        offsetY = (Math.random() - 0.5) * 6;
+        break;
+    }
+  }
+
+  ctx.globalAlpha = Math.max(0, Math.min(1, opacity));
+  ctx.globalCompositeOperation = settings.blendMode;
+
+  // Apply transforms from center of logo
+  const centerX = dx + dw / 2 + offsetX;
+  const centerY = dy + dh / 2 + offsetY;
+  ctx.translate(centerX, centerY);
+  ctx.rotate((rotation * Math.PI) / 180);
+  ctx.scale(scale, scale);
+
+  ctx.drawImage(logo, -dw / 2, -dh / 2, dw, dh);
+
   ctx.restore();
 }
 
-function drawLabels(ctx: CanvasRenderingContext2D, slice: SliceData, brandName: string) {
+function drawLabels(ctx: CanvasRenderingContext2D, slice: SliceData, brandName: string, preset: GraphicPresetType = 'default') {
   const { x, y, width, height, name } = slice;
   ctx.save();
+
+  const accentColor = preset === 'kawaii-core' ? '#FFB7C5' :
+                      preset === 'frutiger-aero' ? '#48CAE4' :
+                      preset === 'retro-ps1' ? '#00FF00' : '#00FFFF';
+  const textColor = preset === 'retro-ps1' ? '#00FF00' : '#FFFFFF';
+  const fontFamily = preset === 'retro-ps1' ? "'Courier New', monospace" :
+                     preset === 'kawaii-core' ? "'Arial Rounded MT Bold', 'Arial', sans-serif" : "'Arial', sans-serif";
 
   // Position badge (top-left)
   const badgeFontSize = Math.max(8, Math.min(width / 40, 12));
@@ -696,22 +1084,23 @@ function drawLabels(ctx: CanvasRenderingContext2D, slice: SliceData, brandName: 
   const pad = 4;
   ctx.fillStyle = 'rgba(0,0,0,0.7)';
   ctx.fillRect(x + 6, y + 6, tw + pad * 2, badgeFontSize + pad);
-  ctx.strokeStyle = 'rgba(0,255,255,0.5)';
+  ctx.strokeStyle = accentColor.replace(')', ',0.5)').replace('rgb', 'rgba').replace('#', '');
+  ctx.strokeStyle = accentColor + '80';
   ctx.lineWidth = 1;
   ctx.strokeRect(x + 6, y + 6, tw + pad * 2, badgeFontSize + pad);
-  ctx.fillStyle = '#00FFFF';
+  ctx.fillStyle = accentColor;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
   ctx.fillText(posText, x + 6 + pad, y + 6 + pad / 2);
 
   // Slice name (center)
   const nameFontSize = Math.max(14, Math.min(width / 14, 36));
-  ctx.font = `bold ${nameFontSize}px 'Arial', sans-serif`;
+  ctx.font = `bold ${nameFontSize}px ${fontFamily}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.shadowColor = 'rgba(0,0,0,0.9)';
   ctx.shadowBlur = 8;
-  ctx.fillStyle = '#FFFFFF';
+  ctx.fillStyle = textColor;
   ctx.fillText(name.toUpperCase(), x + width / 2, y + height / 2 - 10);
   ctx.shadowBlur = 0;
 
@@ -728,8 +1117,8 @@ function drawLabels(ctx: CanvasRenderingContext2D, slice: SliceData, brandName: 
   // Brand name (bottom center)
   if (brandName) {
     const brandFontSize = Math.max(8, Math.min(width / 30, 14));
-    ctx.font = `${brandFontSize}px 'Arial', sans-serif`;
-    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    ctx.font = `${brandFontSize}px ${fontFamily}`;
+    ctx.fillStyle = preset === 'kawaii-core' ? 'rgba(255,183,197,0.5)' : 'rgba(255,255,255,0.4)';
     ctx.fillText(brandName, x + width / 2, y + height - brandFontSize);
   }
 
