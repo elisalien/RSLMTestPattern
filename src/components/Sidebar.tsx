@@ -356,6 +356,8 @@ function BrandingSection() {
   const setLogo = useStore(s => s.setLogo);
   const globalOverlay = useStore(s => s.globalOverlay);
   const setGlobalOverlay = useStore(s => s.setGlobalOverlay);
+  const overlaySettings = useStore(s => s.overlaySettings);
+  const setOverlaySettings = useStore(s => s.setOverlaySettings);
 
   const logoRef = useRef<HTMLInputElement>(null);
   const overlayRef = useRef<HTMLInputElement>(null);
@@ -423,11 +425,73 @@ function BrandingSection() {
       <input ref={overlayRef} type="file" accept="image/*,video/mp4,video/webm,video/quicktime" onChange={handleOverlay} className="hidden" />
       <button
         onClick={() => overlayRef.current?.click()}
-        className="w-full btn btn-secondary text-xs py-2 flex items-center justify-center gap-1.5"
+        className="w-full btn btn-secondary text-xs py-2 flex items-center justify-center gap-1.5 mb-1"
       >
         <Film size={14} />
         {globalOverlay ? 'Change Overlay' : 'Upload Overlay (img/video)'}
       </button>
+      {globalOverlay && (
+        <>
+          <button
+            onClick={() => setGlobalOverlay(null)}
+            className="w-full btn btn-secondary text-[10px] py-1 flex items-center justify-center gap-1 mb-2 text-red-400 hover:text-red-300"
+          >
+            <Trash2 size={10} /> Remove Overlay
+          </button>
+          <div className="space-y-2 mt-1">
+            {/* Position */}
+            <div>
+              <label className="text-[10px] text-gray-500 mb-1 block">Position</label>
+              <div className="grid grid-cols-3 gap-0.5">
+                {LOGO_POSITIONS.map(p => (
+                  <button key={p.id}
+                    onClick={() => setOverlaySettings({ position: p.id })}
+                    className={`py-1 rounded text-[10px] font-mono transition-all ${
+                      overlaySettings.position === p.id
+                        ? 'bg-purple-500/30 border border-purple-500/50 text-purple-300'
+                        : 'bg-gray-800/50 border border-gray-700 text-gray-500 hover:border-gray-500'
+                    }`}
+                  >{p.label}</button>
+                ))}
+              </div>
+            </div>
+            {/* Size */}
+            <div>
+              <label className="text-[10px] text-gray-500 flex justify-between">
+                <span>Size</span><span>{overlaySettings.size}%</span>
+              </label>
+              <input type="range" min={5} max={200} value={overlaySettings.size}
+                onChange={e => setOverlaySettings({ size: parseInt(e.target.value) })}
+                className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-500" />
+            </div>
+            {/* Opacity */}
+            <div>
+              <label className="text-[10px] text-gray-500 flex justify-between">
+                <span>Opacity</span><span>{overlaySettings.opacity}%</span>
+              </label>
+              <input type="range" min={5} max={100} value={overlaySettings.opacity}
+                onChange={e => setOverlaySettings({ opacity: parseInt(e.target.value) })}
+                className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-500" />
+            </div>
+            {/* Blend Mode */}
+            <div>
+              <label className="text-[10px] text-gray-500 mb-1 block">Blend</label>
+              <div className="grid grid-cols-2 gap-0.5">
+                {BLEND_MODES.map(b => (
+                  <button key={b.id}
+                    onClick={() => setOverlaySettings({ blendMode: b.id })}
+                    className={`py-1 rounded text-[10px] transition-all ${
+                      overlaySettings.blendMode === b.id
+                        ? 'bg-purple-500/20 border border-purple-500/50 text-purple-300'
+                        : 'bg-gray-800/50 border border-gray-700 text-gray-500 hover:border-gray-500'
+                    }`}
+                  >{b.label}</button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </Section>
   );
 }
@@ -476,7 +540,7 @@ function LogoSettingsSection() {
             <label className="text-[10px] text-gray-500 flex justify-between">
               <span>Size</span><span>{logoSettings.size}%</span>
             </label>
-            <input type="range" min={2} max={80} value={logoSettings.size}
+            <input type="range" min={2} max={200} value={logoSettings.size}
               onChange={e => setLogoSettings({ size: parseInt(e.target.value) })}
               className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-cyan-500" />
           </div>
@@ -659,7 +723,7 @@ function LogoInstanceCard({ inst, idx, onRemove, onUpdate, onSetImage }: {
             <label className="text-[9px] text-gray-500 flex justify-between">
               <span>Size</span><span>{inst.settings.size}%</span>
             </label>
-            <input type="range" min={2} max={80} value={inst.settings.size}
+            <input type="range" min={2} max={200} value={inst.settings.size}
               onChange={e => onUpdate(inst.id, { size: parseInt(e.target.value) })}
               className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-500" />
           </div>

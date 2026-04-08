@@ -1,4 +1,4 @@
-import { TemplateType, GraphicPresetType, SliceData, OverlaySource, SliceOverlays, LogoSettings, LogoInstance, DecorativeSettings, AnimationPresetType, VideoPresetType } from '../types';
+import { TemplateType, GraphicPresetType, SliceData, OverlaySource, OverlaySettings, SliceOverlays, LogoSettings, LogoInstance, DecorativeSettings, AnimationPresetType, VideoPresetType } from '../types';
 import type { DecorativeElementType } from '../types';
 
 // ─── SMPTE Color Constants ──────────────────────────────────────
@@ -97,6 +97,7 @@ export interface GeneratorOptions {
   extraLogos: LogoInstance[];
   decorativeSettings: DecorativeSettings;
   globalOverlay: OverlaySource | null;
+  overlaySettings: import('../types').OverlaySettings;
   sliceOverlays: SliceOverlays;
   brandName: string;
   animationPreset?: AnimationPresetType;
@@ -181,7 +182,7 @@ export function renderCompositionInto(
 
     // Overlay
     const overlay = options.sliceOverlays[slice.id] || options.globalOverlay;
-    if (overlay) drawOverlay(ctx, slice, overlay);
+    if (overlay) drawOverlay(ctx, slice, overlay, options.overlaySettings);
 
     // Logo with positioning (main + extra instances)
     if (options.logo) {
@@ -1334,22 +1335,36 @@ function drawSliceBorder(ctx: CanvasRenderingContext2D, slice: SliceData, preset
   ctx.restore();
 }
 
-function drawOverlay(ctx: CanvasRenderingContext2D, slice: SliceData, src: OverlaySource) {
+function drawOverlay(ctx: CanvasRenderingContext2D, slice: SliceData, src: OverlaySource, settings: OverlaySettings) {
   const { x, y, width, height } = slice;
-  const maxSize = Math.min(width, height) * 0.18;
 
   const sw = src instanceof HTMLVideoElement ? src.videoWidth : src.naturalWidth;
   const sh = src instanceof HTMLVideoElement ? src.videoHeight : src.naturalHeight;
   if (!sw || !sh) return;
 
+  const maxSize = Math.min(width, height) * (settings.size / 100);
   const ratio = Math.min(maxSize / sw, maxSize / sh);
   const dw = sw * ratio;
   const dh = sh * ratio;
-  const dx = x + (width - dw) / 2;
-  const dy = y + height * 0.15;
+  const pad = 10;
+
+  let dx: number, dy: number;
+  switch (settings.position) {
+    case 'top-left':      dx = x + pad; dy = y + pad; break;
+    case 'top-center':    dx = x + (width - dw) / 2; dy = y + pad; break;
+    case 'top-right':     dx = x + width - dw - pad; dy = y + pad; break;
+    case 'center-left':   dx = x + pad; dy = y + (height - dh) / 2; break;
+    case 'center':        dx = x + (width - dw) / 2; dy = y + (height - dh) / 2; break;
+    case 'center-right':  dx = x + width - dw - pad; dy = y + (height - dh) / 2; break;
+    case 'bottom-left':   dx = x + pad; dy = y + height - dh - pad; break;
+    case 'bottom-center': dx = x + (width - dw) / 2; dy = y + height - dh - pad; break;
+    case 'bottom-right':  dx = x + width - dw - pad; dy = y + height - dh - pad; break;
+    default:              dx = x + (width - dw) / 2; dy = y + (height - dh) / 2; break;
+  }
 
   ctx.save();
-  ctx.globalAlpha = 0.85;
+  ctx.globalAlpha = settings.opacity / 100;
+  ctx.globalCompositeOperation = settings.blendMode;
   ctx.drawImage(src, dx, dy, dw, dh);
   ctx.restore();
 }
