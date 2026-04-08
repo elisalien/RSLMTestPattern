@@ -1,3 +1,7 @@
+// ─── Constants ──────────────────────────────────────────────────
+
+export const LOOP_DURATION_MS = 5000;
+
 // ─── Resolume Data ───────────────────────────────────────────────
 
 export interface SliceData {
@@ -241,8 +245,6 @@ export interface AnimationPreset {
   description: string;
   durationMs: number;
 }
-
-export const LOOP_DURATION_MS = 5000;
 
 export const ANIMATION_PRESETS: AnimationPreset[] = [
   { id: 'none', name: 'None', description: 'Static', durationMs: 0 },
