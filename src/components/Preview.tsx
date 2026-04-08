@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useStore } from '../store';
 import { generateComposition, renderCompositionInto, GeneratorOptions } from '../utils/pattern-generator';
-import { VIDEO_PRESETS, ANIMATION_PRESETS } from '../types';
+import { LOOP_DURATION_MS } from '../types';
 
 function getScaledSlices(setup: any, dims: any, outputResolution: any) {
   let slices = setup.slices;
@@ -96,14 +96,9 @@ export function Preview() {
     if (hasAnimation) {
       startTimeRef.current = performance.now();
 
-      const vpInfo = VIDEO_PRESETS.find(p => p.id === videoPreset);
-      const apInfo = ANIMATION_PRESETS.find(p => p.id === animationPreset);
-      const decoMs = decorativeSettings.animated ? (decorativeSettings.durationMs || 3000) : 0;
-      const duration = Math.max(vpInfo?.durationMs || 2000, apInfo?.durationMs || 2000, decoMs);
-
       const animate = (time: number) => {
         const elapsed = time - startTimeRef.current;
-        const progress = (elapsed * animationSpeed / duration) % 1;
+        const progress = (elapsed * animationSpeed / LOOP_DURATION_MS) % 1;
         renderFrame(progress);
         animRef.current = requestAnimationFrame(animate);
       };
@@ -194,12 +189,8 @@ export async function exportVideo() {
     const allSlices = getScaledSlices(setup, dims, s.outputResolution);
     const slices = allSlices.filter((sl: any) => !s.disabledSlices.has(sl.id));
 
-    const vpInfo = VIDEO_PRESETS.find(p => p.id === s.videoPreset);
-    const apInfo = ANIMATION_PRESETS.find(p => p.id === s.animationPreset);
-    const decoMs = s.decorativeSettings?.animated ? (s.decorativeSettings.durationMs || 3000) : 0;
-    const duration = Math.max(vpInfo?.durationMs || 2000, apInfo?.durationMs || 2000, decoMs);
-    const fps = vpInfo?.fps || 30;
-    const totalFrames = Math.round((duration / 1000) * fps);
+    const fps = 30;
+    const totalFrames = Math.round((LOOP_DURATION_MS / 1000) * fps);
     const frameInterval = 1000 / fps;
 
     // Single reusable canvas for the stream - avoids allocating new canvas per frame
@@ -232,8 +223,7 @@ export async function exportVideo() {
         const a = document.createElement('a');
         a.href = url;
         const label = s.viewMode === 'output' ? 'Output' : 'Input';
-        const ext = actualMime.includes('mp4') ? 'mp4' : 'webm';
-        a.download = `${s.brandName || setup.name}_${s.template}_${label}_${dims.width}x${dims.height}_loop.${ext}`;
+        a.download = `${s.brandName || setup.name}_${s.template}_${label}_${dims.width}x${dims.height}_loop.webm`;
         a.click();
         URL.revokeObjectURL(url);
         resolve();

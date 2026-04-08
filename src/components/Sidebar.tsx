@@ -9,8 +9,8 @@ import { useStore } from '../store';
 import {
   TEMPLATES, OUTPUT_RESOLUTIONS, TemplateType, GRAPHIC_PRESETS,
   GraphicPresetType, LOGO_POSITIONS, BLEND_MODES, ANIMATION_PRESETS,
-  VIDEO_PRESETS, EXPORT_FORMATS, LogoPosition, AnimationPresetType,
-  VideoPresetType, ExportFormat, DECORATIVE_ELEMENTS, DecorativeElementType,
+  VIDEO_PRESETS, LogoPosition, AnimationPresetType,
+  VideoPresetType, DECORATIVE_ELEMENTS, DecorativeElementType,
   MAX_LOGO_INSTANCES,
 } from '../types';
 import { exportComposition, exportVideo } from './Preview';
@@ -792,8 +792,6 @@ function DecorativeElementsSection() {
           </label>
 
           {decorativeSettings.animated && (
-            <>
-              {/* Animation Speed */}
               <div>
                 <label className="text-[10px] text-gray-500 flex justify-between">
                   <span>Anim Speed</span><span>{decorativeSettings.animSpeed || 1}x</span>
@@ -802,17 +800,6 @@ function DecorativeElementsSection() {
                   onChange={e => setDecorativeSettings({ animSpeed: parseInt(e.target.value) / 100 })}
                   className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-pink-500" />
               </div>
-
-              {/* Loop Duration */}
-              <div>
-                <label className="text-[10px] text-gray-500 flex justify-between">
-                  <span>Loop Duration</span><span>{((decorativeSettings.durationMs || 3000) / 1000).toFixed(1)}s</span>
-                </label>
-                <input type="range" min={1000} max={10000} step={500} value={decorativeSettings.durationMs || 3000}
-                  onChange={e => setDecorativeSettings({ durationMs: parseInt(e.target.value) })}
-                  className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-pink-500" />
-              </div>
-            </>
           )}
         </div>
       )}
@@ -980,46 +967,25 @@ function ExportSection() {
   const setup = useStore(s => s.resolumeSetup);
   const getDims = useStore(s => s.getOutputDimensions);
   const viewMode = useStore(s => s.viewMode);
-  const exportFormat = useStore(s => s.exportFormat);
-  const setExportFormat = useStore(s => s.setExportFormat);
   const videoPreset = useStore(s => s.videoPreset);
   const animationPreset = useStore(s => s.animationPreset);
+  const decorativeSettings = useStore(s => s.decorativeSettings);
   const isExporting = useStore(s => s.isExporting);
 
   if (!setup) return null;
 
   const dims = getDims();
-  const hasAnimation = videoPreset !== 'none' || animationPreset !== 'none';
+  const label = viewMode === 'output' ? 'Out' : 'In';
+  const hasAnimation = videoPreset !== 'none' || animationPreset !== 'none' || decorativeSettings.animated;
 
   return (
     <Section title="Export" icon={<Download size={16} />}>
-      {hasAnimation && (
-        <div className="mb-2">
-          <label className="text-[10px] text-gray-500 mb-1 block">Export Format</label>
-          <div className="grid grid-cols-2 gap-1">
-            {EXPORT_FORMATS.map(f => (
-              <button
-                key={f.id}
-                onClick={() => setExportFormat(f.id as ExportFormat)}
-                className={`py-1.5 rounded text-[10px] font-medium transition-all ${
-                  exportFormat === f.id
-                    ? 'bg-green-500/20 border border-green-500/50 text-green-300'
-                    : 'bg-gray-800/50 border border-gray-700 text-gray-400 hover:border-gray-500'
-                }`}
-              >
-                {f.name}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
       <button
         onClick={exportComposition}
         className="w-full btn btn-success flex items-center justify-center gap-2 py-2.5 text-sm font-semibold mb-1.5"
       >
         <Download size={16} />
-        Export PNG ({viewMode === 'output' ? 'Out' : 'In'} {dims.width}x{dims.height})
+        PNG ({label} {dims.width}x{dims.height})
       </button>
 
       {hasAnimation && (
@@ -1031,7 +997,7 @@ function ExportSection() {
           {isExporting ? (
             <><div className="spinner w-4 h-4" /> Rendering...</>
           ) : (
-            <><Film size={16} /> Export Video Loop</>
+            <><Film size={16} /> WebM 5s loop ({label} {dims.width}x{dims.height})</>
           )}
         </button>
       )}

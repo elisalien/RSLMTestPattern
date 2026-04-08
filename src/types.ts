@@ -153,7 +153,7 @@ export const DEFAULT_DECORATIVE_SETTINGS: DecorativeSettings = {
   opacity: 40,
   animated: false,
   animSpeed: 1,
-  durationMs: 3000,
+  durationMs: LOOP_DURATION_MS,
 };
 
 // ─── Logo Settings ──────────────────────────────────────────────
@@ -242,16 +242,18 @@ export interface AnimationPreset {
   durationMs: number;
 }
 
+export const LOOP_DURATION_MS = 5000;
+
 export const ANIMATION_PRESETS: AnimationPreset[] = [
   { id: 'none', name: 'None', description: 'Static', durationMs: 0 },
-  { id: 'pulse', name: 'Pulse', description: 'Scale breathing effect', durationMs: 2000 },
-  { id: 'rotate', name: 'Rotate 360', description: 'Full rotation loop', durationMs: 3000 },
-  { id: 'bounce', name: 'Bounce', description: 'Vertical bounce', durationMs: 1500 },
-  { id: 'fade-in-out', name: 'Fade In/Out', description: 'Opacity cycle', durationMs: 2000 },
-  { id: 'slide-horizontal', name: 'Slide H', description: 'Horizontal slide loop', durationMs: 3000 },
-  { id: 'slide-vertical', name: 'Slide V', description: 'Vertical slide loop', durationMs: 3000 },
-  { id: 'zoom-in-out', name: 'Zoom', description: 'Scale zoom cycle', durationMs: 2500 },
-  { id: 'glitch', name: 'Glitch', description: 'Random offset glitch', durationMs: 1000 },
+  { id: 'pulse', name: 'Pulse', description: 'Scale breathing effect', durationMs: LOOP_DURATION_MS },
+  { id: 'rotate', name: 'Rotate 360', description: 'Full rotation loop', durationMs: LOOP_DURATION_MS },
+  { id: 'bounce', name: 'Bounce', description: 'Vertical bounce', durationMs: LOOP_DURATION_MS },
+  { id: 'fade-in-out', name: 'Fade In/Out', description: 'Opacity cycle', durationMs: LOOP_DURATION_MS },
+  { id: 'slide-horizontal', name: 'Slide H', description: 'Horizontal slide loop', durationMs: LOOP_DURATION_MS },
+  { id: 'slide-vertical', name: 'Slide V', description: 'Vertical slide loop', durationMs: LOOP_DURATION_MS },
+  { id: 'zoom-in-out', name: 'Zoom', description: 'Scale zoom cycle', durationMs: LOOP_DURATION_MS },
+  { id: 'glitch', name: 'Glitch', description: 'Random offset glitch', durationMs: LOOP_DURATION_MS },
 ];
 
 // ─── Video Content Presets ──────────────────────────────────────
@@ -277,19 +279,19 @@ export interface VideoPreset {
 
 export const VIDEO_PRESETS: VideoPreset[] = [
   { id: 'none', name: 'None', description: 'Static pattern only', fps: 0, durationMs: 0 },
-  { id: 'color-cycle', name: 'Color Cycle', description: 'Hue rotation through spectrum', fps: 30, durationMs: 4000 },
-  { id: 'gradient-sweep', name: 'Gradient Sweep', description: 'Moving gradient across slices', fps: 30, durationMs: 3000 },
-  { id: 'scanline-scroll', name: 'Scanline Scroll', description: 'Scrolling CRT scanlines', fps: 30, durationMs: 2000 },
-  { id: 'noise-static', name: 'Noise / Static', description: 'Animated TV noise', fps: 15, durationMs: 2000 },
-  { id: 'plasma', name: 'Plasma', description: 'Psychedelic plasma animation', fps: 30, durationMs: 5000 },
-  { id: 'rainbow-bars', name: 'Rainbow Bars', description: 'Scrolling rainbow color bars', fps: 30, durationMs: 3000 },
-  { id: 'countdown-loop', name: 'Countdown Loop', description: '5-second countdown circle', fps: 30, durationMs: 5000 },
-  { id: 'waveform', name: 'Waveform', description: 'Oscillating waveform display', fps: 30, durationMs: 3000 },
+  { id: 'color-cycle', name: 'Color Cycle', description: 'Hue rotation through spectrum', fps: 30, durationMs: LOOP_DURATION_MS },
+  { id: 'gradient-sweep', name: 'Gradient Sweep', description: 'Moving gradient across slices', fps: 30, durationMs: LOOP_DURATION_MS },
+  { id: 'scanline-scroll', name: 'Scanline Scroll', description: 'Scrolling CRT scanlines', fps: 30, durationMs: LOOP_DURATION_MS },
+  { id: 'noise-static', name: 'Noise / Static', description: 'Animated TV noise', fps: 15, durationMs: LOOP_DURATION_MS },
+  { id: 'plasma', name: 'Plasma', description: 'Psychedelic plasma animation', fps: 30, durationMs: LOOP_DURATION_MS },
+  { id: 'rainbow-bars', name: 'Rainbow Bars', description: 'Scrolling rainbow color bars', fps: 30, durationMs: LOOP_DURATION_MS },
+  { id: 'countdown-loop', name: 'Countdown Loop', description: '5-second countdown circle', fps: 30, durationMs: LOOP_DURATION_MS },
+  { id: 'waveform', name: 'Waveform', description: 'Oscillating waveform display', fps: 30, durationMs: LOOP_DURATION_MS },
 ];
 
 // ─── Export Formats ─────────────────────────────────────────────
 
-export type ExportFormat = 'png' | 'webm' | 'mp4' | 'gif';
+export type ExportFormat = 'png' | 'webm';
 
 export interface ExportFormatInfo {
   id: ExportFormat;
@@ -300,9 +302,7 @@ export interface ExportFormatInfo {
 
 export const EXPORT_FORMATS: ExportFormatInfo[] = [
   { id: 'png', name: 'PNG', description: 'Static image', mimeType: 'image/png' },
-  { id: 'webm', name: 'WebM', description: 'VP8 video loop', mimeType: 'video/webm' },
-  { id: 'mp4', name: 'MP4 (WebM)', description: 'WebM container (rename .webm)', mimeType: 'video/webm' },
-  { id: 'gif', name: 'GIF (WebM)', description: 'Use WebM for animated export', mimeType: 'video/webm' },
+  { id: 'webm', name: 'WebM', description: '5s video loop', mimeType: 'video/webm' },
 ];
 
 // ─── Overlay ─────────────────────────────────────────────────────
