@@ -346,6 +346,7 @@ export interface Preset {
   logoSettings?: LogoSettings;
   decorativeSettings?: DecorativeSettings;
   extraLogos?: LogoInstance[];
+  overlaySettings?: OverlaySettings;
 }
 
 export const DEFAULT_PRESET: Preset = {
@@ -363,4 +364,5 @@ export const DEFAULT_PRESET: Preset = {
   logoSettings: DEFAULT_LOGO_SETTINGS,
   decorativeSettings: DEFAULT_DECORATIVE_SETTINGS,
   extraLogos: [],
+  overlaySettings: DEFAULT_OVERLAY_SETTINGS,
 };

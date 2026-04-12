@@ -1,5 +1,4 @@
 import { TemplateType, GraphicPresetType, SliceData, OverlaySource, OverlaySettings, SliceOverlays, LogoSettings, LogoInstance, DecorativeSettings, AnimationPresetType, VideoPresetType } from '../types';
-import type { DecorativeElementType } from '../types';
 
 // ─── SMPTE Color Constants ──────────────────────────────────────
 
@@ -10,7 +9,6 @@ const SMPTE_100 = ['#FFFFFF', '#FFFF00', '#00FFFF', '#00FF00', '#FF00FF', '#FF00
 // ─── Kawaii Core Colors ─────────────────────────────────────────
 
 const KAWAII_COLORS = ['#FFB7C5', '#B5EAEA', '#E8D5FF', '#FFEAA7', '#C4FAF8', '#FFD3E0', '#D5AAFF', '#A8E6CF'];
-const KAWAII_BG = '#1a1025';
 
 // ─── Frutiger Aero Colors ───────────────────────────────────────
 
