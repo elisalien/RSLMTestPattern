@@ -166,7 +166,7 @@ export const useStore = create<AppState>((set, get) => ({
   extraLogos: initial.extraLogos || [],
   decorativeSettings: initial.decorativeSettings || DEFAULT_DECORATIVE_SETTINGS,
   globalOverlay: null,
-  overlaySettings: DEFAULT_OVERLAY_SETTINGS,
+  overlaySettings: initial.overlaySettings || DEFAULT_OVERLAY_SETTINGS,
   sliceOverlays: {},
 
   // Slice management
@@ -322,6 +322,7 @@ export const useStore = create<AppState>((set, get) => ({
     set((state) => ({
       overlaySettings: { ...state.overlaySettings, ...partial },
     }));
+    persistSettings(get());
   },
 
   setSliceOverlay: (sliceId, src) => {
@@ -343,7 +344,7 @@ export const useStore = create<AppState>((set, get) => ({
   toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
 
   setActiveScreen: (index: number) => {
-    const { screens, rawXML, viewMode } = get();
+    const { screens } = get();
     if (index < 0 || index >= screens.length) return;
     const screen = screens[index];
     // Update resolumeSetup with this screen's slices
@@ -405,6 +406,7 @@ export const useStore = create<AppState>((set, get) => ({
       logoSettings: s.logoSettings,
       decorativeSettings: s.decorativeSettings,
       extraLogos: s.extraLogos,
+      overlaySettings: s.overlaySettings,
     };
     const presets = [...s.savedPresets.filter(p => p.name !== name), preset];
     set({ savedPresets: presets });
@@ -427,6 +429,7 @@ export const useStore = create<AppState>((set, get) => ({
       logoSettings: preset.logoSettings || DEFAULT_LOGO_SETTINGS,
       decorativeSettings: preset.decorativeSettings || DEFAULT_DECORATIVE_SETTINGS,
       extraLogos: preset.extraLogos || [],
+      overlaySettings: preset.overlaySettings || DEFAULT_OVERLAY_SETTINGS,
     });
     // Re-parse XML with new view mode
     const { rawXML } = get();
@@ -498,5 +501,6 @@ function persistSettings(s: AppState) {
     logoSettings: s.logoSettings,
     decorativeSettings: s.decorativeSettings,
     extraLogos: s.extraLogos,
+    overlaySettings: s.overlaySettings,
   });
 }

@@ -1,25 +1,45 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useStore } from '../store';
 import { generateComposition, renderCompositionInto, GeneratorOptions } from '../utils/pattern-generator';
-import { LOOP_DURATION_MS } from '../types';
+import {
+  LOOP_DURATION_MS,
+  ResolumeSetup,
+  SliceData,
+  OutputResolution,
+  DEFAULT_OVERLAY_SETTINGS,
+  DEFAULT_DECORATIVE_SETTINGS,
+  DEFAULT_LOGO_SETTINGS,
+} from '../types';
 
-function getScaledSlices(setup: any, dims: any, outputResolution: any) {
-  let slices = setup.slices;
-  if (outputResolution.id !== 'original') {
-    const sx = dims.width / setup.compositionSize.width;
-    const sy = dims.height / setup.compositionSize.height;
-    slices = setup.slices.map((s: any) => ({
-      ...s,
-      x: Math.round(s.x * sx),
-      y: Math.round(s.y * sy),
-      width: Math.round(s.width * sx),
-      height: Math.round(s.height * sy),
-    }));
+type StoreState = ReturnType<typeof useStore.getState>;
+
+function getScaledSlices(
+  setup: ResolumeSetup,
+  dims: { width: number; height: number },
+  outputResolution: OutputResolution,
+): SliceData[] {
+  const compW = setup.compositionSize?.width || 0;
+  const compH = setup.compositionSize?.height || 0;
+
+  // If there's no meaningful composition size, just return slices as-is
+  if (outputResolution.id === 'original' || compW <= 0 || compH <= 0) {
+    return setup.slices;
   }
-  return slices;
+
+  const sx = dims.width / compW;
+  const sy = dims.height / compH;
+  if (!isFinite(sx) || !isFinite(sy)) return setup.slices;
+
+  return setup.slices.map((s) => ({
+    ...s,
+    x: Math.round(s.x * sx),
+    y: Math.round(s.y * sy),
+    width: Math.max(1, Math.round(s.width * sx)),
+    height: Math.max(1, Math.round(s.height * sy)),
+  }));
 }
 
-function buildOptions(s: any, animProgress?: number): GeneratorOptions {
+function buildOptions(s: StoreState, animProgress?: number): GeneratorOptions {
   return {
     template: s.template,
     graphicPreset: s.graphicPreset,
@@ -27,11 +47,11 @@ function buildOptions(s: any, animProgress?: number): GeneratorOptions {
     showLabels: s.showLabels,
     showSafeZones: s.showSafeZones,
     logo: s.logo,
-    logoSettings: s.logoSettings,
+    logoSettings: s.logoSettings || DEFAULT_LOGO_SETTINGS,
     extraLogos: s.extraLogos || [],
-    decorativeSettings: s.decorativeSettings || { enabled: [], density: 2, size: 100, opacity: 40, animated: false, animSpeed: 1, durationMs: 3000 },
+    decorativeSettings: s.decorativeSettings || DEFAULT_DECORATIVE_SETTINGS,
     globalOverlay: s.globalOverlay,
-    overlaySettings: s.overlaySettings,
+    overlaySettings: s.overlaySettings || DEFAULT_OVERLAY_SETTINGS,
     sliceOverlays: s.sliceOverlays,
     brandName: s.brandName,
     animationPreset: s.animationPreset,
@@ -74,8 +94,10 @@ export function Preview() {
     if (!setup || !canvasRef.current) return;
 
     const dims = getDims();
+    if (!dims || dims.width <= 0 || dims.height <= 0) return;
+
     const allSlices = getScaledSlices(setup, dims, outputResolution);
-    const slices = allSlices.filter((s: any) => !disabledSlices.has(s.id));
+    const slices = allSlices.filter((s) => !disabledSlices.has(s.id));
 
     const options = buildOptions(useStore.getState(), progress);
 
@@ -85,11 +107,23 @@ export function Preview() {
       canvas.height = dims.height;
     }
 
-    // Render directly into the visible canvas context
-    const offscreen = generateComposition(slices, dims.width, dims.height, options);
-    const ctx = canvas.getContext('2d')!;
-    ctx.clearRect(0, 0, dims.width, dims.height);
-    ctx.drawImage(offscreen, 0, 0);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    try {
+      const offscreen = generateComposition(slices, dims.width, dims.height, options);
+      ctx.clearRect(0, 0, dims.width, dims.height);
+      ctx.drawImage(offscreen, 0, 0);
+    } catch (err) {
+      console.error('Preview render failed:', err);
+      // Paint an obvious fallback so the canvas isn't silently blank
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(0, 0, dims.width, dims.height);
+      ctx.fillStyle = '#ff4466';
+      ctx.font = '24px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Render error — check console', dims.width / 2, dims.height / 2);
+    }
   }, [setup, getDims, outputResolution, disabledSlices]);
 
   useEffect(() => {
@@ -146,7 +180,7 @@ export function exportComposition() {
 
   const dims = s.getOutputDimensions();
   const allSlices = getScaledSlices(setup, dims, s.outputResolution);
-  const slices = allSlices.filter((sl: any) => !s.disabledSlices.has(sl.id));
+  const slices = allSlices.filter((sl) => !s.disabledSlices.has(sl.id));
 
   const options = buildOptions(s);
 
@@ -189,7 +223,7 @@ export async function exportVideo() {
   try {
     const dims = s.getOutputDimensions();
     const allSlices = getScaledSlices(setup, dims, s.outputResolution);
-    const slices = allSlices.filter((sl: any) => !s.disabledSlices.has(sl.id));
+    const slices = allSlices.filter((sl) => !s.disabledSlices.has(sl.id));
 
     const fps = 30;
     const totalFrames = Math.round((LOOP_DURATION_MS / 1000) * fps);
@@ -243,10 +277,10 @@ export async function exportVideo() {
 
       renderCompositionInto(streamCtx, slices, dims.width, dims.height, options);
 
-      // Manually push this frame into the MediaRecorder stream
-      if (videoTrack.requestFrame) {
-        videoTrack.requestFrame();
-      }
+      // Manually push this frame into the MediaRecorder stream.
+      // requestFrame is only on CanvasCaptureMediaStreamTrack (not in lib.dom types yet).
+      const rf = (videoTrack as unknown as { requestFrame?: () => void }).requestFrame;
+      if (typeof rf === 'function') rf.call(videoTrack);
 
       // Yield to browser to avoid blocking UI
       await new Promise(r => setTimeout(r, 0));
