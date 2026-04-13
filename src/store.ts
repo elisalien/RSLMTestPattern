@@ -34,7 +34,18 @@ const STORAGE_KEY = 'rslm-settings';
 function loadSettings(): Partial<Preset> {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : {};
+    if (!raw) return {};
+    const parsed: Partial<Preset> = JSON.parse(raw);
+    // Sanitize extraLogos: HTMLImageElement ref can't survive JSON round-trip
+    // and becomes `{}`, which is truthy and crashes drawImage.
+    if (Array.isArray(parsed.extraLogos)) {
+      parsed.extraLogos = parsed.extraLogos.map(l => ({
+        id: l.id,
+        settings: l.settings,
+        image: null,
+      }));
+    }
+    return parsed;
   } catch {
     return {};
   }
@@ -500,7 +511,9 @@ function persistSettings(s: AppState) {
     graphicPreset: s.graphicPreset,
     logoSettings: s.logoSettings,
     decorativeSettings: s.decorativeSettings,
-    extraLogos: s.extraLogos,
+    // Strip non-serializable HTMLImageElement refs; they become `{}` after
+    // round-trip through JSON and break drawImage on reload.
+    extraLogos: s.extraLogos.map(l => ({ ...l, image: null })),
     overlaySettings: s.overlaySettings,
   });
 }
