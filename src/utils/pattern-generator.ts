@@ -103,6 +103,20 @@ export interface GeneratorOptions {
   animationProgress?: number; // 0-1 normalized progress for animation frame
 }
 
+/**
+ * Guard against serialized-then-rehydrated image refs that survive as `{}`
+ * in localStorage. Returns true iff the value is a real image/canvas/video
+ * that drawImage can accept and has non-zero intrinsic dimensions.
+ */
+function isDrawable(src: unknown): src is CanvasImageSource & { naturalWidth?: number; naturalHeight?: number; videoWidth?: number; videoHeight?: number } {
+  if (!src || typeof src !== 'object') return false;
+  if (src instanceof HTMLImageElement) return src.complete && src.naturalWidth > 0;
+  if (src instanceof HTMLCanvasElement) return src.width > 0 && src.height > 0;
+  if (src instanceof HTMLVideoElement) return src.readyState >= 2 && src.videoWidth > 0;
+  if (typeof ImageBitmap !== 'undefined' && src instanceof ImageBitmap) return true;
+  return false;
+}
+
 // Reusable canvas pool to avoid GC pressure during animation/export
 let _reusableCanvas: HTMLCanvasElement | null = null;
 let _reusableDims = { w: 0, h: 0 };
@@ -180,15 +194,15 @@ export function renderCompositionInto(
 
     // Overlay
     const overlay = options.sliceOverlays[slice.id] || options.globalOverlay;
-    if (overlay) drawOverlay(ctx, slice, overlay, options.overlaySettings);
+    if (isDrawable(overlay)) drawOverlay(ctx, slice, overlay, options.overlaySettings);
 
     // Logo with positioning (main + extra instances)
-    if (options.logo) {
+    if (isDrawable(options.logo)) {
       drawLogo(ctx, slice, options.logo, options.logoSettings, options.animationPreset, options.animationProgress);
     }
     for (const extra of options.extraLogos) {
-      const img = extra.image || options.logo;
-      if (img) drawLogo(ctx, slice, img, extra.settings, options.animationPreset, options.animationProgress);
+      const img = isDrawable(extra.image) ? extra.image : options.logo;
+      if (isDrawable(img)) drawLogo(ctx, slice, img, extra.settings, options.animationPreset, options.animationProgress);
     }
 
     // Labels
