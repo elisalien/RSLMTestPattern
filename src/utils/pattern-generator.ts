@@ -1,4 +1,4 @@
-import { TemplateType, GraphicPresetType, SliceData, OverlaySource, OverlaySettings, SliceOverlays, LogoSettings, LogoInstance, DecorativeSettings, AnimationPresetType, VideoPresetType } from '../types';
+import { TemplateType, GraphicPresetType, SliceData, OverlaySource, OverlaySettings, SliceOverlays, LogoSettings, LogoInstance, DecorativeSettings, AnimationPresetType } from '../types';
 
 // ─── SMPTE Color Constants ──────────────────────────────────────
 
@@ -99,7 +99,6 @@ export interface GeneratorOptions {
   sliceOverlays: SliceOverlays;
   brandName: string;
   animationPreset?: AnimationPresetType;
-  videoPreset?: VideoPresetType;
   animationProgress?: number; // 0-1 normalized progress for animation frame
 }
 
@@ -176,11 +175,6 @@ export function renderCompositionInto(
 
     // Graphic preset overlay effects
     drawPresetOverlayEffects(ctx, slice, options);
-
-    // Video preset animation frame
-    if (options.videoPreset && options.videoPreset !== 'none' && options.animationProgress !== undefined) {
-      drawVideoPresetFrame(ctx, slice, options.videoPreset, options.animationProgress);
-    }
 
     // Decorative elements (inside clip)
     if (options.decorativeSettings.enabled.length > 0) {
@@ -811,142 +805,6 @@ function drawMinimal(ctx: CanvasRenderingContext2D, slice: SliceData, options: G
   ctx.beginPath(); ctx.moveTo(x + width - ms, y); ctx.lineTo(x + width, y); ctx.lineTo(x + width, y + ms); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(x + width, y + height - ms); ctx.lineTo(x + width, y + height); ctx.lineTo(x + width - ms, y + height); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(x + ms, y + height); ctx.lineTo(x, y + height); ctx.lineTo(x, y + height - ms); ctx.stroke();
-}
-
-// ─── Video Preset Frame Drawing ─────────────────────────────────
-
-function drawVideoPresetFrame(
-  ctx: CanvasRenderingContext2D,
-  slice: SliceData,
-  preset: VideoPresetType,
-  progress: number,
-) {
-  const { x, y, width, height } = slice;
-
-  switch (preset) {
-    case 'color-cycle': {
-      const hue = Math.round(progress * 360);
-      ctx.fillStyle = `hsla(${hue}, 80%, 50%, 0.15)`;
-      ctx.fillRect(x, y, width, height);
-      break;
-    }
-    case 'gradient-sweep': {
-      const offset = progress * width * 2 - width;
-      const grad = ctx.createLinearGradient(x + offset, y, x + offset + width * 0.5, y + height);
-      grad.addColorStop(0, 'rgba(0,255,255,0.15)');
-      grad.addColorStop(0.5, 'rgba(255,0,255,0.1)');
-      grad.addColorStop(1, 'rgba(0,255,255,0)');
-      ctx.fillStyle = grad;
-      ctx.fillRect(x, y, width, height);
-      break;
-    }
-    case 'scanline-scroll': {
-      const scrollOffset = Math.round(progress * 40);
-      ctx.fillStyle = 'rgba(255,255,255,0.06)';
-      for (let sy = -40 + scrollOffset; sy < height; sy += 8) {
-        ctx.fillRect(x, y + sy, width, 2);
-      }
-      break;
-    }
-    case 'noise-static': {
-      // Optimized: draw random rectangles instead of per-pixel manipulation
-      ctx.save();
-      const blockSize = 4;
-      for (let py = 0; py < height; py += blockSize) {
-        for (let px = 0; px < width; px += blockSize) {
-          const v = Math.random() * 40;
-          ctx.fillStyle = `rgba(${v},${v},${v},0.3)`;
-          ctx.fillRect(x + px, y + py, blockSize, blockSize);
-        }
-      }
-      ctx.restore();
-      break;
-    }
-    case 'plasma': {
-      const t = progress * Math.PI * 2;
-      ctx.save();
-      ctx.globalAlpha = 0.12;
-      // Larger cells for better performance
-      const cellSize = 12;
-      for (let py = 0; py < height; py += cellSize) {
-        for (let px = 0; px < width; px += cellSize) {
-          const v1 = Math.sin(px * 0.02 + t);
-          const v2 = Math.sin(py * 0.02 + t * 1.3);
-          const v3 = Math.sin((px + py) * 0.015 + t * 0.7);
-          const val = (v1 + v2 + v3) / 3;
-          const hue = ((val + 1) * 180) | 0;
-          ctx.fillStyle = `hsl(${hue}, 90%, 55%)`;
-          ctx.fillRect(x + px, y + py, cellSize, cellSize);
-        }
-      }
-      ctx.restore();
-      break;
-    }
-    case 'rainbow-bars': {
-      const barW = width / 12;
-      const scrollX = progress * barW * 12;
-      ctx.save();
-      ctx.globalAlpha = 0.12;
-      for (let i = -1; i < 14; i++) {
-        const hue = ((i * 30) + progress * 360) % 360;
-        ctx.fillStyle = `hsl(${hue}, 90%, 55%)`;
-        ctx.fillRect(x + i * barW - scrollX % barW, y, barW + 1, height);
-      }
-      ctx.restore();
-      break;
-    }
-    case 'countdown-loop': {
-      const seconds = 5 - Math.floor(progress * 5);
-      const fraction = (progress * 5) % 1;
-      const cx = x + width / 2;
-      const cy = y + height / 2;
-      const r = Math.min(width, height) * 0.2;
-
-      // Arc countdown
-      ctx.save();
-      ctx.strokeStyle = 'rgba(0,255,255,0.5)';
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      ctx.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + (1 - fraction) * Math.PI * 2);
-      ctx.stroke();
-
-      // Number
-      const numSize = r * 0.8;
-      ctx.font = `bold ${numSize}px 'Arial', sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillStyle = 'rgba(255,255,255,0.6)';
-      ctx.fillText(String(seconds), cx, cy);
-      ctx.restore();
-      break;
-    }
-    case 'waveform': {
-      const cx = x;
-      const cy = y + height / 2;
-      const amplitude = height * 0.2;
-      ctx.save();
-      ctx.strokeStyle = 'rgba(0,255,0,0.4)';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      for (let px = 0; px < width; px += 2) {
-        const wave = Math.sin((px / width) * Math.PI * 6 + progress * Math.PI * 2) * amplitude;
-        if (px === 0) ctx.moveTo(cx + px, cy + wave);
-        else ctx.lineTo(cx + px, cy + wave);
-      }
-      ctx.stroke();
-      // Second harmonic
-      ctx.strokeStyle = 'rgba(255,0,100,0.3)';
-      ctx.beginPath();
-      for (let px = 0; px < width; px += 2) {
-        const wave = Math.sin((px / width) * Math.PI * 10 + progress * Math.PI * 4) * amplitude * 0.5;
-        if (px === 0) ctx.moveTo(cx + px, cy + wave);
-        else ctx.lineTo(cx + px, cy + wave);
-      }
-      ctx.stroke();
-      ctx.restore();
-      break;
-    }
-  }
 }
 
 // ─── Decorative Elements System ─────────────────────────────────

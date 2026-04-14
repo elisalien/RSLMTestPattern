@@ -14,7 +14,6 @@ import {
   LogoInstance,
   DecorativeSettings,
   AnimationPresetType,
-  VideoPresetType,
   ExportFormat,
   DEFAULT_PRESET,
   DEFAULT_LOGO_SETTINGS,
@@ -94,7 +93,6 @@ interface AppState {
 
   // Animation
   animationPreset: AnimationPresetType;
-  videoPreset: VideoPresetType;
   exportFormat: ExportFormat;
   animationSpeed: number; // multiplier 0.25-4
 
@@ -134,7 +132,6 @@ interface AppState {
   enableAllSlices: () => void;
   disableAllSlices: () => void;
   setAnimationPreset: (p: AnimationPresetType) => void;
-  setVideoPreset: (p: VideoPresetType) => void;
   setExportFormat: (f: ExportFormat) => void;
   setAnimationSpeed: (s: number) => void;
   setIsExporting: (v: boolean) => void;
@@ -185,7 +182,6 @@ export const useStore = create<AppState>((set, get) => ({
 
   // Animation
   animationPreset: 'none',
-  videoPreset: 'none',
   exportFormat: 'png',
   animationSpeed: 1,
 
@@ -393,7 +389,6 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   setAnimationPreset: (p) => set({ animationPreset: p }),
-  setVideoPreset: (p) => set({ videoPreset: p }),
   setExportFormat: (f) => set({ exportFormat: f }),
   setAnimationSpeed: (s) => set({ animationSpeed: s }),
   setIsExporting: (v) => set({ isExporting: v }),

@@ -258,42 +258,9 @@ export const ANIMATION_PRESETS: AnimationPreset[] = [
   { id: 'glitch', name: 'Glitch', description: 'Random offset glitch', durationMs: LOOP_DURATION_MS },
 ];
 
-// ─── Video Content Presets ──────────────────────────────────────
-
-export type VideoPresetType =
-  | 'none'
-  | 'color-cycle'
-  | 'gradient-sweep'
-  | 'scanline-scroll'
-  | 'noise-static'
-  | 'plasma'
-  | 'rainbow-bars'
-  | 'countdown-loop'
-  | 'waveform';
-
-export interface VideoPreset {
-  id: VideoPresetType;
-  name: string;
-  description: string;
-  fps: number;
-  durationMs: number;
-}
-
-export const VIDEO_PRESETS: VideoPreset[] = [
-  { id: 'none', name: 'None', description: 'Static pattern only', fps: 0, durationMs: 0 },
-  { id: 'color-cycle', name: 'Color Cycle', description: 'Hue rotation through spectrum', fps: 30, durationMs: LOOP_DURATION_MS },
-  { id: 'gradient-sweep', name: 'Gradient Sweep', description: 'Moving gradient across slices', fps: 30, durationMs: LOOP_DURATION_MS },
-  { id: 'scanline-scroll', name: 'Scanline Scroll', description: 'Scrolling CRT scanlines', fps: 30, durationMs: LOOP_DURATION_MS },
-  { id: 'noise-static', name: 'Noise / Static', description: 'Animated TV noise', fps: 15, durationMs: LOOP_DURATION_MS },
-  { id: 'plasma', name: 'Plasma', description: 'Psychedelic plasma animation', fps: 30, durationMs: LOOP_DURATION_MS },
-  { id: 'rainbow-bars', name: 'Rainbow Bars', description: 'Scrolling rainbow color bars', fps: 30, durationMs: LOOP_DURATION_MS },
-  { id: 'countdown-loop', name: 'Countdown Loop', description: '5-second countdown circle', fps: 30, durationMs: LOOP_DURATION_MS },
-  { id: 'waveform', name: 'Waveform', description: 'Oscillating waveform display', fps: 30, durationMs: LOOP_DURATION_MS },
-];
-
 // ─── Export Formats ─────────────────────────────────────────────
 
-export type ExportFormat = 'png' | 'webm';
+export type ExportFormat = 'png' | 'mp4';
 
 export interface ExportFormatInfo {
   id: ExportFormat;
@@ -304,7 +271,7 @@ export interface ExportFormatInfo {
 
 export const EXPORT_FORMATS: ExportFormatInfo[] = [
   { id: 'png', name: 'PNG', description: 'Static image', mimeType: 'image/png' },
-  { id: 'webm', name: 'WebM', description: '5s video loop', mimeType: 'video/webm' },
+  { id: 'mp4', name: 'MP4', description: '5s video loop', mimeType: 'video/mp4' },
 ];
 
 // ─── Overlay ─────────────────────────────────────────────────────

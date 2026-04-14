@@ -55,7 +55,6 @@ function buildOptions(s: StoreState, animProgress?: number): GeneratorOptions {
     sliceOverlays: s.sliceOverlays,
     brandName: s.brandName,
     animationPreset: s.animationPreset,
-    videoPreset: s.videoPreset,
     animationProgress: animProgress,
   };
 }
@@ -83,12 +82,11 @@ export function Preview() {
   const getDims = useStore(s => s.getOutputDimensions);
   const disabledSlices = useStore(s => s.disabledSlices);
   const animationPreset = useStore(s => s.animationPreset);
-  const videoPreset = useStore(s => s.videoPreset);
   const animationSpeed = useStore(s => s.animationSpeed);
   const decorativeSettings = useStore(s => s.decorativeSettings);
   const extraLogos = useStore(s => s.extraLogos);
 
-  const hasAnimation = animationPreset !== 'none' || videoPreset !== 'none' || decorativeSettings.animated;
+  const hasAnimation = animationPreset !== 'none' || decorativeSettings.animated;
 
   const renderFrame = useCallback((progress?: number) => {
     if (!setup || !canvasRef.current) return;
@@ -146,7 +144,7 @@ export function Preview() {
     }
   }, [setup, template, graphicPreset, gridSize, showLabels, showSafeZones, logo, logoSettings,
       globalOverlay, overlaySettings, sliceOverlays, brandName, outputResolution, customWidth, customHeight,
-      getDims, disabledSlices, animationPreset, videoPreset, animationSpeed, hasAnimation, renderFrame,
+      getDims, disabledSlices, animationPreset, animationSpeed, hasAnimation, renderFrame,
       decorativeSettings, extraLogos]);
 
   if (!setup) {
@@ -198,21 +196,20 @@ export function exportComposition() {
   });
 }
 
-/** Detect the best supported mimeType for MediaRecorder */
-function getSupportedMimeType(): string {
-  const candidates = [
-    'video/webm;codecs=vp9',
-    'video/webm;codecs=vp8',
-    'video/webm;codecs=vp8,opus',
-    'video/webm',
-  ];
-  for (const mime of candidates) {
-    if (MediaRecorder.isTypeSupported(mime)) return mime;
-  }
-  return '';
-}
+/** Export composition as a looping MP4 video.
+ *
+ * Implementation uses WebCodecs VideoEncoder + mp4-muxer when available. This
+ * gives frame-accurate, deterministic output at 60 fps: PTS are controlled
+ * explicitly so encoding speed is decoupled from wall-clock time — fixes the
+ * stutter previously caused by MediaRecorder + captureStream(0)+requestFrame()
+ * where frame timestamps came from `performance.now()` at the moment of
+ * capture (variable render cost ⇒ uneven playback).
+ *
+ * Falls back to MediaRecorder/WebM on browsers without WebCodecs.
+ */
+const EXPORT_FPS = 60;
+const EXPORT_BITRATE = 20_000_000; // 20 Mbps — high quality for test patterns
 
-/** Export composition as looping video (WebM) */
 export async function exportVideo() {
   const s = useStore.getState();
   const { resolumeSetup: setup } = s;
@@ -225,76 +222,208 @@ export async function exportVideo() {
     const allSlices = getScaledSlices(setup, dims, s.outputResolution);
     const slices = allSlices.filter((sl) => !s.disabledSlices.has(sl.id));
 
-    const fps = 30;
-    const totalFrames = Math.round((LOOP_DURATION_MS / 1000) * fps);
+    const totalFrames = Math.round((LOOP_DURATION_MS / 1000) * EXPORT_FPS);
 
-    // Single reusable canvas for the stream - avoids allocating new canvas per frame
-    const streamCanvas = document.createElement('canvas');
-    streamCanvas.width = dims.width;
-    streamCanvas.height = dims.height;
-    const streamCtx = streamCanvas.getContext('2d', { alpha: false })!;
+    // Single reusable canvas for encoding
+    const renderCanvas = document.createElement('canvas');
+    renderCanvas.width = dims.width;
+    renderCanvas.height = dims.height;
+    const renderCtx = renderCanvas.getContext('2d', { alpha: false })!;
 
-    // captureStream(0) = manual frame capture, decoupled from real-time
-    const stream = streamCanvas.captureStream(0);
-    const videoTrack = stream.getVideoTracks()[0];
+    const label = s.viewMode === 'output' ? 'Output' : 'Input';
+    const baseName = `${s.brandName || setup.name}_${s.template}_${label}_${dims.width}x${dims.height}_loop`;
 
-    const mimeType = getSupportedMimeType();
-    const recorderOptions: MediaRecorderOptions = {
-      videoBitsPerSecond: 16000000,
-    };
-    if (mimeType) recorderOptions.mimeType = mimeType;
-
-    const mediaRecorder = new MediaRecorder(stream, recorderOptions);
-    const actualMime = mediaRecorder.mimeType || 'video/webm';
-
-    const chunks: Blob[] = [];
-    mediaRecorder.ondataavailable = (e) => {
-      if (e.data.size > 0) chunks.push(e.data);
-    };
-
-    const exportPromise = new Promise<void>((resolve) => {
-      mediaRecorder.onstop = () => {
-        const blob = new Blob(chunks, { type: actualMime });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        const label = s.viewMode === 'output' ? 'Output' : 'Input';
-        a.download = `${s.brandName || setup.name}_${s.template}_${label}_${dims.width}x${dims.height}_loop.webm`;
-        a.click();
-        URL.revokeObjectURL(url);
-        resolve();
-      };
-    });
-
-    // Request data periodically for smoother encoding
-    mediaRecorder.start(200);
-
-    // Render all frames with same animationSpeed as preview.
-    // captureStream(0) + requestFrame() decouples from wall-clock time.
-    for (let frame = 0; frame < totalFrames; frame++) {
+    const renderFrameAt = (frame: number) => {
       const progress = (frame * s.animationSpeed / totalFrames) % 1;
       const options = buildOptions(s, progress);
+      renderCompositionInto(renderCtx, slices, dims.width, dims.height, options);
+    };
 
-      renderCompositionInto(streamCtx, slices, dims.width, dims.height, options);
-
-      // Manually push this frame into the MediaRecorder stream.
-      // requestFrame is only on CanvasCaptureMediaStreamTrack (not in lib.dom types yet).
-      const rf = (videoTrack as unknown as { requestFrame?: () => void }).requestFrame;
-      if (typeof rf === 'function') rf.call(videoTrack);
-
-      // Yield to browser to avoid blocking UI
-      await new Promise(r => setTimeout(r, 0));
+    if (webCodecsAvailable()) {
+      await exportViaWebCodecs(renderCanvas, renderFrameAt, dims, totalFrames, baseName);
+    } else {
+      await exportViaMediaRecorder(renderCanvas, renderFrameAt, totalFrames, baseName);
     }
-
-    // Ensure last frame is captured
-    await new Promise(r => setTimeout(r, 100));
-    mediaRecorder.stop();
-    await exportPromise;
-
   } catch (err) {
     console.error('Video export failed:', err);
-    alert('Video export failed. Your browser may not support WebM recording.\nTry using Chrome or Edge for best compatibility.');
+    alert('Video export failed. See console for details.\nFor best results, use Chrome, Edge, or Safari 16.4+.');
   } finally {
     s.setIsExporting(false);
   }
+}
+
+function webCodecsAvailable(): boolean {
+  return typeof window !== 'undefined'
+    && 'VideoEncoder' in window
+    && 'VideoFrame' in window;
+}
+
+/** Primary path: WebCodecs H.264 in MP4 — frame-perfect, fast, Resolume-friendly. */
+async function exportViaWebCodecs(
+  canvas: HTMLCanvasElement,
+  renderFrameAt: (frame: number) => void,
+  dims: { width: number; height: number },
+  totalFrames: number,
+  baseName: string,
+) {
+  // Dynamic import keeps mp4-muxer out of the initial bundle
+  const { Muxer, ArrayBufferTarget } = await import('mp4-muxer');
+
+  // Try H.264 first (best compatibility, especially for Resolume/Premiere/etc.),
+  // then fall through to other codecs. Most desktop browsers support avc1 via
+  // hardware or software. We use a conservative High@L5.1 profile descriptor
+  // good up to ~4K@60.
+  const codecCandidates: Array<{ codec: 'avc' | 'vp9' | 'av1'; webCodec: string }> = [
+    { codec: 'avc', webCodec: 'avc1.640033' }, // H.264 High@L5.1
+    { codec: 'avc', webCodec: 'avc1.4d0034' }, // H.264 Main@L5.2
+    { codec: 'avc', webCodec: 'avc1.42e01f' }, // H.264 Baseline@L3.1 (fallback)
+    { codec: 'vp9', webCodec: 'vp09.00.50.08' },
+    { codec: 'av1', webCodec: 'av01.0.08M.08' },
+  ];
+
+  let selected: { codec: 'avc' | 'vp9' | 'av1'; webCodec: string } | null = null;
+  for (const cand of codecCandidates) {
+    try {
+      const { supported } = await VideoEncoder.isConfigSupported({
+        codec: cand.webCodec,
+        width: dims.width,
+        height: dims.height,
+        bitrate: EXPORT_BITRATE,
+        framerate: EXPORT_FPS,
+      });
+      if (supported) {
+        selected = cand;
+        break;
+      }
+    } catch { /* try next */ }
+  }
+
+  if (!selected) {
+    // No encoder available — degrade to MediaRecorder path
+    await exportViaMediaRecorder(canvas, renderFrameAt, totalFrames, baseName);
+    return;
+  }
+
+  const muxer = new Muxer({
+    target: new ArrayBufferTarget(),
+    video: {
+      codec: selected.codec,
+      width: dims.width,
+      height: dims.height,
+      frameRate: EXPORT_FPS,
+    },
+    fastStart: 'in-memory',
+  });
+
+  const encoder = new VideoEncoder({
+    output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
+    error: (e) => { throw e; },
+  });
+
+  encoder.configure({
+    codec: selected.webCodec,
+    width: dims.width,
+    height: dims.height,
+    bitrate: EXPORT_BITRATE,
+    framerate: EXPORT_FPS,
+    // H.264 avc format matches what the muxer expects by default
+    ...(selected.codec === 'avc' ? { avc: { format: 'avc' } } : {}),
+  });
+
+  const frameDurationUs = Math.round(1_000_000 / EXPORT_FPS);
+  // Keyframe every ~1s keeps seeking snappy without hurting size much for 5s loops
+  const keyframeInterval = EXPORT_FPS;
+
+  for (let frame = 0; frame < totalFrames; frame++) {
+    renderFrameAt(frame);
+
+    const timestamp = frame * frameDurationUs;
+    const videoFrame = new VideoFrame(canvas, {
+      timestamp,
+      duration: frameDurationUs,
+    });
+
+    encoder.encode(videoFrame, { keyFrame: frame % keyframeInterval === 0 });
+    videoFrame.close();
+
+    // Back-pressure: if the encoder queue gets long, yield so the browser
+    // can flush. This keeps memory bounded and the UI responsive.
+    if (encoder.encodeQueueSize > 8) {
+      await new Promise<void>((resolve) => {
+        const check = () => {
+          if (encoder.encodeQueueSize <= 2) resolve();
+          else setTimeout(check, 8);
+        };
+        check();
+      });
+    } else if (frame % 10 === 0) {
+      await new Promise((r) => setTimeout(r, 0));
+    }
+  }
+
+  await encoder.flush();
+  encoder.close();
+  muxer.finalize();
+
+  const { buffer } = muxer.target;
+  const blob = new Blob([buffer], { type: 'video/mp4' });
+  downloadBlob(blob, `${baseName}.mp4`);
+}
+
+/** Fallback path: MediaRecorder/WebM (older browsers without WebCodecs). */
+async function exportViaMediaRecorder(
+  canvas: HTMLCanvasElement,
+  renderFrameAt: (frame: number) => void,
+  totalFrames: number,
+  baseName: string,
+) {
+  const mimeCandidates = [
+    'video/webm;codecs=vp9',
+    'video/webm;codecs=vp8',
+    'video/webm',
+  ];
+  const mimeType = mimeCandidates.find((m) => MediaRecorder.isTypeSupported(m)) || '';
+
+  const stream = (canvas as HTMLCanvasElement & { captureStream: (fps?: number) => MediaStream })
+    .captureStream(0);
+  const videoTrack = stream.getVideoTracks()[0];
+
+  const recorderOptions: MediaRecorderOptions = { videoBitsPerSecond: EXPORT_BITRATE };
+  if (mimeType) recorderOptions.mimeType = mimeType;
+
+  const recorder = new MediaRecorder(stream, recorderOptions);
+  const actualMime = recorder.mimeType || 'video/webm';
+  const chunks: Blob[] = [];
+  recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+
+  const done = new Promise<void>((resolve) => {
+    recorder.onstop = () => {
+      const blob = new Blob(chunks, { type: actualMime });
+      const ext = actualMime.includes('webm') ? 'webm' : 'mp4';
+      downloadBlob(blob, `${baseName}.${ext}`);
+      resolve();
+    };
+  });
+
+  recorder.start(200);
+
+  for (let frame = 0; frame < totalFrames; frame++) {
+    renderFrameAt(frame);
+    const rf = (videoTrack as unknown as { requestFrame?: () => void }).requestFrame;
+    if (typeof rf === 'function') rf.call(videoTrack);
+    await new Promise((r) => setTimeout(r, 0));
+  }
+
+  await new Promise((r) => setTimeout(r, 100));
+  recorder.stop();
+  await done;
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
 }
