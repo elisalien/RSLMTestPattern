@@ -2,15 +2,15 @@ import { useRef, useCallback, useState } from 'react';
 import {
   Upload, Download, Image as ImageIcon, Film, Grid3x3,
   Settings, Save, FolderOpen, Trash2, Eye, EyeOff, Tag,
-  Monitor, Layers, Palette, Play, Sparkles, ChevronDown, ChevronUp,
+  Monitor, Layers, Palette, Sparkles, ChevronDown, ChevronUp,
   Move, Plus, Minus, Copy,
 } from 'lucide-react';
 import { useStore } from '../store';
 import {
   TEMPLATES, OUTPUT_RESOLUTIONS, TemplateType, GRAPHIC_PRESETS,
   GraphicPresetType, LOGO_POSITIONS, BLEND_MODES, ANIMATION_PRESETS,
-  VIDEO_PRESETS, LogoPosition, AnimationPresetType,
-  VideoPresetType, DECORATIVE_ELEMENTS, DecorativeElementType,
+  LogoPosition, AnimationPresetType,
+  DECORATIVE_ELEMENTS, DecorativeElementType,
   MAX_LOGO_INSTANCES,
 } from '../types';
 import { exportComposition, exportVideo } from './Preview';
@@ -33,7 +33,6 @@ export function Sidebar() {
         <LogoDuplicationSection />
         <DecorativeElementsSection />
         <AnimationSection />
-        <VideoPresetSection />
         <PresetSection />
         <ExportSection />
       </div>
@@ -914,42 +913,6 @@ function AnimationSection() {
   );
 }
 
-// ─── Video Content Presets ──────────────────────────────────────
-
-function VideoPresetSection() {
-  const videoPreset = useStore(s => s.videoPreset);
-  const setVideoPreset = useStore(s => s.setVideoPreset);
-  const setup = useStore(s => s.resolumeSetup);
-
-  if (!setup) return null;
-
-  return (
-    <Section title="Video Content" icon={<Play size={16} />}>
-      <div className="grid grid-cols-3 gap-1">
-        {VIDEO_PRESETS.map(p => (
-          <button
-            key={p.id}
-            onClick={() => setVideoPreset(p.id as VideoPresetType)}
-            className={`py-1.5 px-1 rounded text-[10px] transition-all ${
-              videoPreset === p.id
-                ? 'bg-green-500/20 border border-green-500/50 text-green-300'
-                : 'bg-gray-800/50 border border-gray-700 text-gray-400 hover:border-gray-500'
-            }`}
-            title={p.description}
-          >
-            {p.name}
-          </button>
-        ))}
-      </div>
-      {videoPreset !== 'none' && (
-        <p className="text-[10px] text-gray-500 mt-1.5">
-          {VIDEO_PRESETS.find(p => p.id === videoPreset)?.description} - Export as video for loop
-        </p>
-      )}
-    </Section>
-  );
-}
-
 // ─── Presets ─────────────────────────────────────────────────────
 
 function PresetSection() {
@@ -1031,7 +994,6 @@ function ExportSection() {
   const setup = useStore(s => s.resolumeSetup);
   const getDims = useStore(s => s.getOutputDimensions);
   const viewMode = useStore(s => s.viewMode);
-  const videoPreset = useStore(s => s.videoPreset);
   const animationPreset = useStore(s => s.animationPreset);
   const decorativeSettings = useStore(s => s.decorativeSettings);
   const isExporting = useStore(s => s.isExporting);
@@ -1040,7 +1002,7 @@ function ExportSection() {
 
   const dims = getDims();
   const label = viewMode === 'output' ? 'Out' : 'In';
-  const hasAnimation = videoPreset !== 'none' || animationPreset !== 'none' || decorativeSettings.animated;
+  const hasAnimation = animationPreset !== 'none' || decorativeSettings.animated;
 
   return (
     <Section title="Export" icon={<Download size={16} />}>
@@ -1061,7 +1023,7 @@ function ExportSection() {
           {isExporting ? (
             <><div className="spinner w-4 h-4" /> Rendering...</>
           ) : (
-            <><Film size={16} /> WebM 5s loop ({label} {dims.width}x{dims.height})</>
+            <><Film size={16} /> MP4 5s loop ({label} {dims.width}x{dims.height})</>
           )}
         </button>
       )}
