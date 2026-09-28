@@ -1,148 +1,76 @@
-# 🎬 Resolume Test Pattern Generator
+# Mires Resolume
 
-Générateur de mires de test professionnelles pour Resolume Arena avec support complet de tous les standards broadcast.
+Générateur de mires de test pour Resolume Arena : importe l’Advanced Output, génère une mire par slice, vérifie la sortie de chaque écran (warp compris) et exporte en PNG ou en vidéo DXV / HAP / ProRes prête à jouer.
 
-## ✨ Fonctionnalités
+## Lancer
 
-### Patterns Professionnels
-- **SMPTE Color Bars 75%** - Standard broadcast américain (NTSC)
-- **SMPTE Color Bars 100%** - Barres pleine intensité
-- **EBU Bars 75%** - Standard broadcast européen (PAL/SECAM)
-- **Crosshatch** - Grille pour tests de convergence
-- **Monoscope** - Pattern complet avec cercles et convergence
-- **Zone Plate / UFO** - Test de focus et résolution
-- **Gradient Ramp** - Calibration de luminance et gamma
-- **Pixel Grid** - Numérotation des panels LED
-- **Resolume Pattern** - Mire style Resolume avec grille et marqueurs
+**En local (recommandé)** — export DXV, HAP, HAP Q, HAP Alpha, ProRes 4444 et H.264 via ffmpeg :
 
-### Fonctionnalités Principales
-✅ **Import XML Resolume** - Parse automatiquement les slices et dimensions avec gestion d'erreurs avancée
-✅ **Navigation Advanced Input/Output** - Basculez entre l'input et l'output avancé de Resolume pour visualiser et exporter selon votre besoin
-✅ **Compatibilité Améliorée** - Support robuste de différentes versions de Resolume Arena (6, 7, 8+)
-✅ **Génération Responsive** - Les patterns s'adaptent automatiquement aux dimensions de chaque slice
-✅ **Personnalisation Complète** - Couleurs, grille, texte, UFOs, diagonale
-✅ **Interface Moderne** - UI/UX professionnelle avec animations fluides et design épuré
-✅ **États de Chargement** - Feedback visuel lors des opérations
-✅ **Design Responsive** - Optimisé pour tous les écrans
-✅ **Gestion des Slices**
-   - Vue composition complète
-   - Preview temps réel
-   - Validation automatique
-   - Couleurs personnalisables par slice
-✅ **Export PNG** - Export haute qualité jusqu'à 4K
-
-## 🚀 Installation
+- Windows : double-clic sur `Lancer Mires Resolume.bat`
+- ou en ligne de commande :
 
 ```bash
-# Installation des dépendances
 npm install
-
-# Lancer en mode développement
-npm run dev
-
-# Build pour production
-npm run build
+npm run local
 ```
 
-## 📖 Utilisation
+L’app s’ouvre sur http://127.0.0.1:4777. Les vidéos sont enregistrées dans `Vidéos\Mires Resolume` (modifiable avec la variable `RSLM_OUT`). ffmpeg doit être dans le PATH (`winget install ffmpeg`).
 
-### 1. Importer votre XML Resolume
-Cliquez sur "Import Resolume XML" et sélectionnez votre fichier d'export Resolume Arena.
+**En ligne / sans ffmpeg** : tout marche sauf DXV / HAP / ProRes ; l’export vidéo se fait en MP4 dans le navigateur (Chrome ou Edge).
 
-**Nouveau !** Après l'import, vous pouvez choisir entre :
-- **Advanced Output** (par défaut) - Visualise et exporte selon la sortie configurée dans Resolume
-- **Advanced Input** - Visualise et exporte selon l'entrée source de la composition
+**Développement** : `npm run dev` (Vite, port 3000) + `npm start` dans un autre terminal pour l’API d’encodage.
 
-Basculez entre les deux modes avec les boutons sous l'import pour mieux comprendre votre mapping.
+## Ce que fait l’app
 
-### 2. Sélectionner un Pattern
-Choisissez parmi les 9 patterns professionnels disponibles :
-- **Resolume** : Mire par défaut avec grille et marqueurs
-- **SMPTE 75%** : Standard broadcast pour calibration couleur
-- **SMPTE 100%** : Barres pleine intensité
-- **EBU 75%** : Standard européen
-- **Crosshatch** : Pour tester la convergence
-- **Monoscope** : Pattern complet avec cercles
-- **Zone Plate** : Test de focus et résolution (UFO)
-- **Gradient** : Calibration luminance
-- **Pixel Grid** : Numérotation LED panels
+### Setup
+- Import du XML Advanced Output (Arena 6 → 7.x) par bouton ou glisser-déposer n’importe où.
+- Lit tous les types de sortie : Display, Virtual, Spout, NDI. Les écrans DMX (pixel mapping lumière) sont ignorés.
+- Slices, polygones (contours d’entrée et de sortie), slices tournées, warp Bezier et corner pin (homographie).
+- Slices partagées entre plusieurs écrans : dessinées une seule fois.
+- Setup manuel (taille + grille de slices) quand il n’y a pas de XML.
+- Chaque slice peut être coupée ; chaque écran peut être masqué de la composition.
 
-### 3. Configurer les Options
-- **Couleurs** : Fond, grille, texte
-- **Dimensions** : Taille de grille, taille de texte
-- **Options** : Afficher texte, UFOs, diagonale
+### Deux vues
+- **Composition** : ce que Resolume joue (le clip à charger).
+- **Sortie écran** : ce que reçoit chaque écran, avec la déformation appliquée et les contours des slices.
 
-### 4. Sélectionner les Slices
-- **Clic simple** : Sélectionner une slice
-- **Ctrl+Clic** : Sélection multiple
-- Toutes les slices sont sélectionnées par défaut
+### Mires (20)
+Identification, Mire complète, Carte UV · Barres SMPTE, Barres EBU, Aplat, Dégradés RVB, Spectre · Échelle de gris, Noirs et blancs (PLUGE), Contrôle gamma · Quadrillage, Damier, Convergence, Cabinets LED (numérotation serpentin + câblage) · Zone plate, Étoile de Siemens, Résolution, Pixels alternés · Fond seul.
+Chaque mire se dessine dans chaque slice ou une seule fois sur toute la composition.
 
-### 5. Exporter
-- **Export individuel** : Bouton download sur chaque slice
-- **Export batch** : "Exporter tout" pour toutes les slices sélectionnées
-- Format : PNG haute qualité
+### Repères pro (cumulables)
+Contour de slice, bords au pixel (overscan), étiquette (nom, taille, ratio, position, écran), centre et diagonales, cercle de ratio, grille pixel alignée composition, zones de sécurité, règles, coordonnées des coins, chevauchements entre slices, carte d’info, cadre de composition.
 
-## 🔧 Stack Technique
-- **React 18** + **TypeScript** - Framework moderne et type-safe
-- **Vite** - Build ultra-rapide
-- **Tailwind CSS** - Styling utilitaire avec classes personnalisées
-- **fast-xml-parser** - Parsing XML Resolume robuste
-- **Chroma.js** - Manipulation des couleurs
-- **Canvas API** - Génération des patterns
-- **Lucide React** - Icônes modernes et optimisées
-- **CSS Animations** - Transitions fluides et professionnelles
+### Animations (boucles parfaites)
+Chaque mouvement fait un nombre entier de cycles par boucle : la vidéo boucle sans saut.
+Barre de balayage, compteur d’images + timecode + carré pair/impair, flash de synchro, chenillard de slices, horloge de boucle, défilement de la mire, carré rebondissant, texte défilant, cycle de couleurs, formes flottantes, cadre pulsé.
 
-## 📐 Formats Supportés
-- **Résolutions** : De SD à 4K (3840×2160)
-- **Aspect Ratios** : Tous ratios supportés (16:9, 4:3, custom)
-- **XML** : Resolume Arena 6, 7, 8+
-  - Gestion automatique des écrans multiples
-  - Validation robuste des données
-  - Messages d'erreur détaillés pour le debugging
+### Logos
+- PNG, SVG, WebP… gardés dans le navigateur (IndexedDB) : plus perdus au rechargement.
+- Autant de calques que voulu : sur chaque slice, sur des slices choisies ou une fois sur la composition.
+- Position 9 points + décalage + marge, taille relative (petit côté, largeur ou hauteur), rotation, miroir, opacité, mode de fusion.
+- Couleur : d’origine, blanc, noir, couleur de la slice, teinte au choix, inversé.
+- Plaque de fond arrondie, ombre portée, mosaïque (filigrane) avec angle et décalage.
+- Animations : pulsation, flottement, rotation, retournement, rebond, orbite, fondu, DVD, glitch.
 
-## 🎯 Cas d'Usage
-- **VJing Live** : Tester les outputs LED avant les shows
-- **Installation** : Calibration d'écrans et projecteurs
-- **Broadcast** : Vérification signal vidéo
-- **Mapping** : Alignement de projections
-- **LED Walls** : Configuration de panels LED
+### Export
+- PNG : vue, composition, chaque écran ou chaque slice (ZIP), échelle 25 → 200 %.
+- Vidéo : DXV 3, HAP, HAP Q, HAP Alpha, ProRes 4444, H.264 (ffmpeg local) ou MP4 navigateur.
+- Fond transparent possible (PNG, HAP Alpha, ProRes 4444) pour poser repères et logos en couche.
 
-## 📝 Structure XML Resolume
-Le parser extrait automatiquement avec validation :
-- **Nom des slices** - Identifiant de chaque zone
-- **Dimensions** - Width × Height en pixels (arrondis automatiquement)
-- **Position** - Coordonnées X, Y (validation des valeurs)
-- **InputRect** - Zone dans la composition source
-- **OutputRect** - Zone de sortie réelle sur l'écran
-- **Gestion d'erreurs** - Logs détaillés pour identifier les problèmes
-- **Fallback intelligent** - Valeurs par défaut si données manquantes
+### Presets
+Sauvegarde de la mire, des repères, des animations et des logos. Export / import en JSON avec les logos embarqués.
 
-## 🌟 Inspirations
-Basé sur les standards professionnels :
-- **SMPTE** (Society of Motion Picture & Television Engineers)
-- **EBU** (European Broadcasting Union)
-- **ITU-R BT.601/709** - Standards de colorimétrie
-- Générateurs professionnels (DVS, VIOSO, Pixera, Smode)
+## Raccourcis
+- `Espace` lecture / pause · `←` `→` image par image en pause
+- `F` ajuster · `1` pixels réels · `Ctrl` + molette zoom
 
-## 🚧 Roadmap Future
-- [ ] Export PDF multi-pages
-- [ ] Export XML modifié
-- [ ] Templates de patterns personnalisés
-- [ ] Génération de palettes automatiques
-- [ ] Support multi-résolutions batch (1080p, 4K, 8K)
-- [ ] Naming pattern intelligent avec variables
-- [ ] Auto-save toutes les 30s
-- [ ] Animation de la ligne diagonale
-- [ ] Mode copier-coller paramètres
-- [ ] Lock/unlock slices
-
-## 📄 Licence
-MIT License - Libre d'utilisation pour vos projets VJ/LED !
-
-## 🙏 Crédits
-Créé pour la communauté VJ 🎥✨
-Testé avec Resolume Arena 7+ sur des setups LED complexes
-
----
-
-**Made with ❤️ for VJs, by VJs**
+## Structure
+```
+server/serve.mjs      serveur local : app + encodage ffmpeg
+src/core/             types, géométrie (homographie, warp), parser XML
+src/render/           moteur (cache par couche), mires, repères, animations, logos, thèmes
+src/export/           PNG, ZIP, vidéo (WebCodecs + ffmpeg)
+src/state/            store (persistance), bibliothèque de logos (IndexedDB)
+src/ui/               interface
+```
