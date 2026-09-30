@@ -6,6 +6,7 @@ import { ANIMS } from './anims';
 import { drawLogo, isLogoAnimated } from './logos';
 import { sliceHsl, themeById } from './themes';
 import { assets } from '../state/assets';
+import { decoAnimated, drawDeco } from './deco';
 
 export interface RenderInput {
   setup: Setup;
@@ -24,7 +25,7 @@ export function loopTime(frame: number, scene: Pick<SceneState, 'fps' | 'loopSec
 }
 
 export function isAnimated(scene: SceneState) {
-  return Object.values(scene.anims).some(a => a.enabled) || scene.logos.some(isLogoAnimated);
+  return Object.values(scene.anims).some(a => a.enabled) || scene.logos.some(isLogoAnimated) || decoAnimated(scene.deco);
 }
 
 // ─── Targets ────────────────────────────────────────────────────
@@ -158,7 +159,7 @@ export class Renderer {
     }
 
     // ── Layer 2: static overlays + static logos ──
-    const sKey = JSON.stringify([pKey, scene.overlays, scene.logos.filter(l => !isLogoAnimated(l)), assets.version()]);
+    const sKey = JSON.stringify([pKey, scene.overlays, scene.logos.filter(l => !isLogoAnimated(l)), scene.deco, assets.version()]);
     if (sKey !== this.staticKey || !this.staticLayer) {
       this.staticLayer = this.ensure(this.staticLayer, W, H);
       const c = this.staticLayer.getContext('2d')!;
@@ -172,6 +173,7 @@ export class Renderer {
         if (o.scope === 'comp') safe(() => { c.save(); o.draw(c, comp, p, targets); c.restore(); }, o.name);
         else for (const t of targets) safe(() => { enter(c, t); o.draw(c, t, p, targets); c.restore(); }, o.name);
       }
+      if (!decoAnimated(scene.deco)) for (const t of targets) safe(() => { enter(c, t); drawDeco(c, t, scene.deco, null); c.restore(); }, 'décor');
       this.drawLogos(c, inp, targets, comp, null, false);
       this.staticKey = sKey;
     }
@@ -186,6 +188,7 @@ export class Renderer {
     ctx.drawImage(this.staticLayer, 0, 0);
 
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    if (decoAnimated(scene.deco)) for (const t of targets) safe(() => { enter(ctx, t); drawDeco(ctx, t, scene.deco, time); ctx.restore(); }, 'décor');
     for (const a of ANIMS) {
       const st = scene.anims[a.id];
       if (!st?.enabled || a.id === 'scroll') continue;

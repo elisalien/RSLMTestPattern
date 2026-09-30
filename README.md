@@ -43,7 +43,10 @@ Contour de slice, bords au pixel (overscan), étiquette (nom, taille, ratio, pos
 
 ### Animations (boucles parfaites)
 Chaque mouvement fait un nombre entier de cycles par boucle : la vidéo boucle sans saut.
-Barre de balayage, compteur d’images + timecode + carré pair/impair, flash de synchro, chenillard de slices, horloge de boucle, défilement de la mire, carré rebondissant, texte défilant, cycle de couleurs, formes flottantes, cadre pulsé.
+Barre de balayage, compteur d’images + timecode + carré pair/impair, flash de synchro, chenillard de slices, horloge de boucle, défilement de la mire, carré rebondissant, texte défilant, cycle de couleurs, cadre pulsé.
+
+### Petites étoiles et décor (onglet Style)
+12 formes à semer sur chaque slice : étoiles, étincelles, cœurs, notes, fleurs, diamants, nuages, pixels, bulles, croix, flèches, éclairs. Fixes ou animées (flottent, scintillent, tournent, montent), quantité, taille, opacité, couleurs du thème ou de la slice. Les thèmes Kawaii Core et Frutiger Aero retrouvent leurs étoiles de coin et leurs bulles.
 
 ### Logos
 - PNG, SVG, WebP… gardés dans le navigateur (IndexedDB) : plus perdus au rechargement.

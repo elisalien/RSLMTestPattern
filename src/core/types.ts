@@ -114,6 +114,7 @@ export interface LogoLayer {
 export interface LayerState { enabled: boolean; params: Params }
 
 export interface SceneState {
+  deco: import('../render/deco').DecoState;
   patternId: string;
   patternScope: PatternScope;
   patternParams: Record<string, Params>;

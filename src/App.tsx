@@ -61,6 +61,7 @@ export default function App() {
     reperes: Object.values(scene.overlays).filter(o => o.enabled).length,
     anim: Object.values(scene.anims).filter(o => o.enabled).length,
     logos: scene.logos.filter(l => l.enabled).length,
+    style: scene.deco.shapes.length,
   };
 
   // Drop anywhere: XML → setup, images → logos

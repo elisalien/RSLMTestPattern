@@ -1,4 +1,21 @@
 import { Rect, Theme } from '../core/types';
+import { drawShape } from './deco';
+
+/** Theme-signature sparkles in the corners (as in the original Kawaii theme). */
+function cornerSparkles(ctx: CanvasRenderingContext2D, r: Rect, colors: string[], kind: string, alpha: number) {
+  const s = Math.min(r.w, r.h) * 0.022;
+  const spots = [[0.1, 0.1], [0.9, 0.15], [0.85, 0.85], [0.15, 0.9], [0.5, 0.05]];
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  spots.forEach(([fx, fy], i) => {
+    ctx.save();
+    ctx.fillStyle = ctx.strokeStyle = colors[i % colors.length];
+    ctx.translate(r.x + r.w * fx, r.y + r.h * fy);
+    drawShape(ctx, kind, s, colors[i % colors.length]);
+    ctx.restore();
+  });
+  ctx.restore();
+}
 
 const SANS = '"Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif';
 const MONO = '"Cascadia Mono", "Consolas", "SF Mono", monospace';
@@ -64,6 +81,7 @@ export const THEMES: Theme[] = [
       g.addColorStop(1, 'rgba(181,234,234,0.07)');
       ctx.fillStyle = g;
       ctx.fillRect(r.x, r.y, r.w, r.h);
+      cornerSparkles(ctx, r, ['#FFB7C5', '#B5EAEA', '#E8D5FF', '#FFEAA7', '#C4FAF8'], 'stars', 0.55);
     },
   },
   {
@@ -77,6 +95,15 @@ export const THEMES: Theme[] = [
       g.addColorStop(1, 'rgba(255,255,255,0)');
       ctx.fillStyle = g;
       ctx.fillRect(r.x, r.y, r.w, r.h * 0.45);
+      // Translucent bubbles
+      const m = Math.min(r.w, r.h);
+      for (const [fx, fy, fr] of [[0.2, 0.3, 0.04], [0.7, 0.2, 0.025], [0.8, 0.7, 0.035], [0.35, 0.8, 0.02]]) {
+        const cx = r.x + r.w * fx, cy = r.y + r.h * fy, rr = m * fr;
+        const b = ctx.createRadialGradient(cx - rr * 0.3, cy - rr * 0.3, rr * 0.1, cx, cy, rr);
+        b.addColorStop(0, 'rgba(255,255,255,0.22)'); b.addColorStop(0.7, 'rgba(0,180,216,0.1)'); b.addColorStop(1, 'rgba(0,150,199,0.04)');
+        ctx.fillStyle = b; ctx.beginPath(); ctx.arc(cx, cy, rr, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1; ctx.stroke();
+      }
     },
   },
 ];

@@ -6,6 +6,7 @@ import { OVERLAYS, DEFAULT_OVERLAYS_ON } from '../render/overlays';
 import { ANIMS } from '../render/anims';
 import { NEW_LOGO } from '../render/logos';
 import { assets } from './assets';
+import { DEFAULT_DECO } from '../render/deco';
 
 // ─── Defaults ───────────────────────────────────────────────────
 
@@ -18,7 +19,7 @@ export function defaultScene(): SceneState {
   PATTERNS.forEach(p => { patternParams[p.id] = { ...p.defaults }; });
   return {
     patternId: 'mire-pro', patternScope: 'slice', patternParams, overlays, anims, logos: [],
-    themeId: 'studio', transparentBg: false, loopSeconds: 4, fps: 30, showTitle: '',
+    deco: { ...DEFAULT_DECO }, themeId: 'studio', transparentBg: false, loopSeconds: 4, fps: 30, showTitle: '',
   };
 }
 
@@ -30,6 +31,14 @@ function hydrateScene(s: Partial<SceneState> | undefined): SceneState {
   for (const k of Object.keys(d.patternParams)) merged.patternParams[k] = { ...d.patternParams[k], ...(s.patternParams?.[k] || {}) };
   for (const k of Object.keys(d.overlays)) merged.overlays[k] = { enabled: s.overlays?.[k]?.enabled ?? d.overlays[k].enabled, params: { ...d.overlays[k].params, ...(s.overlays?.[k]?.params || {}) } };
   for (const k of Object.keys(d.anims)) merged.anims[k] = { enabled: s.anims?.[k]?.enabled ?? false, params: { ...d.anims[k].params, ...(s.anims?.[k]?.params || {}) } };
+  merged.deco = { ...d.deco, ...(s.deco || {}) };
+  // Old « Formes flottantes » animation → decorative shapes
+  const old = (s.anims as Record<string, LayerState> | undefined)?.shapes;
+  if (!s.deco && old?.enabled) {
+    const map: Record<string, string> = { star: 'stars', heart: 'hearts', sparkle: 'sparkles', circle: 'circles', square: 'pixels', cross: 'crosses' };
+    const k = String(old.params.kind || 'sparkle');
+    merged.deco = { ...merged.deco, shapes: k === 'mix' ? Object.values(map) : [map[k] || 'sparkles'], motion: 'rise' };
+  }
   merged.logos = Array.isArray(s.logos) ? s.logos.map((l, i) => ({ ...NEW_LOGO(i + 1), ...l })) : [];
   if (!PATTERNS.some(p => p.id === merged.patternId)) merged.patternId = d.patternId;
   merged.loopSeconds = clamp(Number(merged.loopSeconds) || 4, 0.5, 120);

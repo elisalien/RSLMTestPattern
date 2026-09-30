@@ -1,5 +1,5 @@
 import { AnimDef, DrawTarget, LoopTime } from '../core/types';
-import { CYCLE, P, TAU, circle, lw, pill, rng, text } from './draw';
+import { CYCLE, P, TAU, circle, lw, pill, text } from './draw';
 
 /** Triangle wave 0→1→0, whole-cycle safe. */
 const tri = (x: number) => 1 - Math.abs(((x % 1) + 1) % 1 * 2 - 1);
@@ -10,39 +10,6 @@ const timecode = (time: LoopTime) => {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `00:00:${pad(s)}:${pad(f)}`;
 };
-
-function shape(ctx: CanvasRenderingContext2D, kind: string, x: number, y: number, s: number, rot: number) {
-  ctx.save();
-  ctx.translate(x, y); ctx.rotate(rot);
-  ctx.beginPath();
-  switch (kind) {
-    case 'star':
-      for (let i = 0; i < 10; i++) {
-        const r = i % 2 ? s * 0.45 : s;
-        const a = (i / 10) * TAU - Math.PI / 2;
-        i ? ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r) : ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r);
-      }
-      break;
-    case 'heart':
-      ctx.moveTo(0, s * 0.35);
-      ctx.bezierCurveTo(-s * 1.1, -s * 0.4, -s * 0.4, -s * 1.1, 0, -s * 0.45);
-      ctx.bezierCurveTo(s * 0.4, -s * 1.1, s * 1.1, -s * 0.4, 0, s * 0.35);
-      break;
-    case 'sparkle':
-      ctx.moveTo(0, -s);
-      ctx.quadraticCurveTo(0, 0, s, 0); ctx.quadraticCurveTo(0, 0, 0, s);
-      ctx.quadraticCurveTo(0, 0, -s, 0); ctx.quadraticCurveTo(0, 0, 0, -s);
-      break;
-    case 'square': ctx.rect(-s / 2, -s / 2, s, s); break;
-    case 'cross':
-      ctx.rect(-s, -s * 0.18, s * 2, s * 0.36); ctx.rect(-s * 0.18, -s, s * 0.36, s * 2);
-      break;
-    default: ctx.arc(0, 0, s * 0.6, 0, TAU);
-  }
-  ctx.closePath();
-  ctx.fill();
-  ctx.restore();
-}
 
 export const ANIMS: AnimDef[] = [
   {
@@ -223,36 +190,6 @@ export const ANIMS: AnimDef[] = [
         ctx.fillStyle = list[Math.min(list.length - 1, Math.floor(time.phase * list.length))];
       }
       ctx.fillRect(0, 0, t.w, t.h);
-      ctx.globalAlpha = 1;
-    },
-  },
-  {
-    id: 'shapes', name: 'Formes flottantes', scope: 'slice',
-    desc: 'Étoiles, cœurs, étincelles qui flottent (déco, esprit des anciens thèmes).',
-    params: [
-      { key: 'kind', label: 'Forme', type: 'select', options: [{ value: 'star', label: 'Étoiles' }, { value: 'heart', label: 'Cœurs' }, { value: 'sparkle', label: 'Étincelles' }, { value: 'circle', label: 'Bulles' }, { value: 'square', label: 'Pixels' }, { value: 'cross', label: 'Croix' }, { value: 'mix', label: 'Mélange' }] },
-      { key: 'count', label: 'Nombre', type: 'range', min: 1, max: 80, step: 1 },
-      { key: 'size', label: 'Taille', type: 'range', min: 1, max: 15, step: 0.5, unit: '%' },
-      { key: 'opacity', label: 'Opacité', type: 'range', min: 5, max: 100, step: 1, unit: '%' },
-      { key: 'cycles', label: 'Montées par boucle', type: 'range', min: 1, max: 6, step: 1 },
-    ],
-    defaults: { kind: 'sparkle', count: 14, size: 3, opacity: 60, cycles: 1 },
-    draw(ctx, t, p, time) {
-      const r = rng(1234 + t.index * 97);
-      const kinds = ['star', 'heart', 'sparkle', 'circle', 'square', 'cross'];
-      const k = P.s(p, 'kind');
-      const m = Math.min(t.w, t.h);
-      ctx.globalAlpha = P.n(p, 'opacity', 60) / 100;
-      const cyc = Math.max(1, Math.round(P.n(p, 'cycles', 1)));
-      for (let i = 0; i < P.n(p, 'count', 14); i++) {
-        const x0 = r() * t.w, off = r(), s = m * P.n(p, 'size', 3) / 100 * (0.6 + r() * 0.8);
-        const hue = t.theme.hues[i % t.theme.hues.length];
-        const ph = (time.phase * cyc + off) % 1;
-        const y = t.h + s - ph * (t.h + s * 2);
-        const x = x0 + Math.sin((ph + off) * TAU) * m * 0.03;
-        ctx.fillStyle = `hsl(${hue},${t.theme.sat}%,${Math.max(60, t.theme.light)}%)`;
-        shape(ctx, k === 'mix' ? kinds[i % kinds.length] : k, x, y, s, (ph * TAU * (i % 2 ? 1 : -1)));
-      }
       ctx.globalAlpha = 1;
     },
   },

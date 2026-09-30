@@ -2,7 +2,8 @@ import { useRef, useState } from 'react';
 import { Download, Trash2, Upload, RotateCcw } from 'lucide-react';
 import { useStore, defaultScene } from '../../state/store';
 import { THEMES } from '../../render/themes';
-import { PanelHead, TextInput, Toggle } from '../controls';
+import { PanelHead, Select, Slider, TextInput, Toggle } from '../controls';
+import { DECO_MOTIONS, DECO_SHAPES, DecoState } from '../../render/deco';
 import { patternThumb } from '../thumbs';
 import { download } from '../../export/exporter';
 
@@ -17,6 +18,7 @@ export function StylePanel() {
           help="Apparaît dans la carte d’info, le texte défilant et le nom des fichiers exportés." />
         <Toggle label="Fond transparent" on={scene.transparentBg} onChange={v => setScene({ transparentBg: v })}
           help="Avec la mire « Fond seul » : seuls repères, logos et animations sont exportés, avec alpha (PNG, HAP Alpha, ProRes 4444). À poser en couche par-dessus un contenu dans Resolume." />
+        <DecoSection />
         <div className="group-title">Thème</div>
         <div className="gallery">
           {THEMES.map(t => (
@@ -28,6 +30,48 @@ export function StylePanel() {
         </div>
       </div>
     </>
+  );
+}
+
+function DecoSection() {
+  const deco = useStore(s => s.scene.deco);
+  const setScene = useStore(s => s.setScene);
+  // Read the latest state so quick successive clicks never overwrite each other
+  const latest = () => useStore.getState().scene.deco;
+  const set = (p: Partial<DecoState>) => setScene({ deco: { ...latest(), ...p } });
+  const on = deco.shapes.length > 0;
+  const toggle = (id: string) => { const cur = latest().shapes; set({ shapes: cur.includes(id) ? cur.filter(x => x !== id) : [...cur, id] }); };
+  return (
+    <div className={`card ${on ? 'on' : ''}`}>
+      <div className="card-head">
+        <div className="title">Petites étoiles et décor<span className="sub">Formes semées sur chaque slice. Clique pour en ajouter une ou plusieurs.</span></div>
+      </div>
+      <div className="card-body">
+        <div className="chips">
+          {DECO_SHAPES.map(d => (
+            <button key={d.id} className={deco.shapes.includes(d.id) ? 'on' : ''} onClick={() => toggle(d.id)} aria-pressed={deco.shapes.includes(d.id)}>
+              <span className="chip-icon">{d.icon}</span>{d.label}
+            </button>
+          ))}
+        </div>
+        {on && (
+          <>
+            <Select label="Mouvement" value={deco.motion} onChange={v => set({ motion: v as DecoState['motion'] })} options={DECO_MOTIONS} />
+            {deco.motion !== 'static' && <Slider label="Cycles par boucle" value={deco.cycles} min={1} max={8} onChange={v => set({ cycles: Math.round(v) })} />}
+            <Slider label="Quantité" value={deco.density} min={1} max={10} step={0.5} onChange={v => set({ density: v })} />
+            <Slider label="Taille" value={deco.size} min={20} max={400} unit="%" onChange={v => set({ size: v })} />
+            <Slider label="Opacité" value={deco.opacity} min={5} max={100} unit="%" onChange={v => set({ opacity: v })} />
+            <Select label="Couleurs" value={deco.palette} onChange={v => set({ palette: v as DecoState['palette'] })} options={[
+              { value: 'theme', label: 'Celles du thème' }, { value: 'slice', label: 'Couleur de la slice' }, { value: 'white', label: 'Blanc' }, { value: 'rainbow', label: 'Arc-en-ciel' },
+            ]} />
+            <div className="row">
+              <button className="btn small" onClick={() => set({ seed: latest().seed + 1 })}>Redistribuer</button>
+              <button className="btn small ghost" onClick={() => set({ shapes: [] })}>Tout retirer</button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 

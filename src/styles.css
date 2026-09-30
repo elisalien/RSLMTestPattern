@@ -149,6 +149,13 @@ input[type=range] { width: 100%; accent-color: var(--teal); height: 20px; cursor
 .tile span { display: block; padding: 5px 8px 6px; font-size: 13px; }
 .tile.on span { font-weight: 700; }
 
+/* ─── Chips (multi-select) ─── */
+.chips { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.chips button { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel-3); cursor: pointer; color: var(--dim); text-align: left; }
+.chips button:hover { border-color: var(--teal); color: var(--text); }
+.chips button.on { border-color: var(--rose); background: var(--rose-bg); color: var(--text); font-weight: 700; }
+.chip-icon { font-size: 16px; width: 18px; text-align: center; }
+
 /* ─── Slices list ─── */
 .slices { display: flex; flex-direction: column; gap: 4px; max-height: 360px; overflow-y: auto; }
 .slice-row { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; border: 1px solid var(--line-soft); background: var(--panel-3); }
