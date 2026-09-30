@@ -16,16 +16,23 @@ const SOLIDS: Record<string, string> = {
   magenta: '#ff00ff', yellow: '#ffff00', black: '#000000', gray50: '#808080', gray18: '#2e2e2e',
 };
 
+const stripeTiles = new Map<string, HTMLCanvasElement>();
 function stripePattern(ctx: CanvasRenderingContext2D, period: number, dir: 'h' | 'v' | 'c', a: string, b: string) {
   const s = Math.max(1, Math.round(period));
-  const c = document.createElement('canvas');
-  c.width = s * 2; c.height = s * 2;
-  const x = c.getContext('2d')!;
-  x.fillStyle = a; x.fillRect(0, 0, s * 2, s * 2);
-  x.fillStyle = b;
-  if (dir === 'v') x.fillRect(s, 0, s, s * 2);
-  else if (dir === 'h') x.fillRect(0, s, s * 2, s);
-  else { x.fillRect(s, 0, s, s); x.fillRect(0, s, s, s); }
+  const key = `${s}|${dir}|${a}|${b}`;
+  let c = stripeTiles.get(key);
+  if (!c) {
+    if (stripeTiles.size > 64) stripeTiles.clear();
+    c = document.createElement('canvas');
+    c.width = s * 2; c.height = s * 2;
+    const x = c.getContext('2d')!;
+    x.fillStyle = a; x.fillRect(0, 0, s * 2, s * 2);
+    x.fillStyle = b;
+    if (dir === 'v') x.fillRect(s, 0, s, s * 2);
+    else if (dir === 'h') x.fillRect(0, s, s * 2, s);
+    else { x.fillRect(s, 0, s, s); x.fillRect(0, s, s, s); }
+    stripeTiles.set(key, c);
+  }
   return ctx.createPattern(c, 'repeat')!;
 }
 

@@ -117,7 +117,6 @@ interface AppState {
   exportPrefs: ExportPrefs;
   presets: Preset[];
   toasts: Toast[];
-  hover: { x: number; y: number; slice: string | null; rgb: string } | null;
 
   loadXML(text: string, name: string): boolean;
   newManual(o: Parameters<typeof buildManualSetup>[0]): void;
@@ -151,7 +150,6 @@ interface AppState {
 
   toast(kind: Toast['kind'], text: string): void;
   dismiss(id: number): void;
-  setHover(h: AppState['hover']): void;
 }
 
 function setupFrom(p: Partial<Persisted>): { setup: Setup; xml: Persisted['xml']; manual: Persisted['manual'] } {
@@ -183,7 +181,6 @@ export const useStore = create<AppState>((set, get) => {
     exportPrefs: { codec: 'mp4', scale: 1, what: 'view', loops: 1, ...(saved.exportPrefs || {}) },
     presets: Array.isArray(saved.presets) ? saved.presets : [],
     toasts: [],
-    hover: null,
 
     loadXML(text, name) {
       try {
@@ -337,6 +334,5 @@ export const useStore = create<AppState>((set, get) => {
       window.setTimeout(() => get().dismiss(id), kind === 'error' ? 9000 : 5000);
     },
     dismiss(id) { set({ toasts: get().toasts.filter(t => t.id !== id) }); },
-    setHover(hover) { set({ hover }); },
   };
 });

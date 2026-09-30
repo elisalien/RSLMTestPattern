@@ -146,6 +146,7 @@ input[type=range] { width: 100%; accent-color: var(--teal); height: 20px; cursor
 .tile:hover { border-color: var(--teal); }
 .tile.on { border-color: var(--rose); box-shadow: 0 0 0 1px var(--rose); }
 .tile img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: #000; }
+.tile .thumb-wait { width: 100%; aspect-ratio: 16 / 9; background: linear-gradient(90deg, #202328, #2a2e35, #202328); }
 .tile span { display: block; padding: 5px 8px 6px; font-size: 13px; }
 .tile.on span { font-weight: 700; }
 

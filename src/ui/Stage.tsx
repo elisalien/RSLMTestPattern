@@ -23,8 +23,9 @@ export function Stage() {
   const prefs = useStore(s => s.prefs);
   const playing = useStore(s => s.playing);
   const setPlaying = useStore(s => s.setPlaying);
-  const hover = useStore(s => s.hover);
-  const setHover = useStore(s => s.setHover);
+  // Hover readout stays local: a global store update on every mouse move re-rendered the whole UI
+  const [hover, setHover] = useState<{ x: number; y: number; slice: string | null; rgb: string } | null>(null);
+  const probe = useRef<CanvasRenderingContext2D | null>(null);
   const assetVersion = useSyncExternalStore(assets.subscribe, assets.version);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -78,10 +79,14 @@ export function Stage() {
     return renderer.current.lastMs;
   }, [setup, scene, disabled, out, screen, prefs.inputScreens, prefs.guides, renderScale, W, H]);
 
-  // Static render whenever something changes
+  // Static render whenever something changes, coalesced to one per display frame
+  // (a slider drag fires far more change events than the screen can show)
   useEffect(() => {
-    const m = draw(frameRef.current);
-    if (m !== undefined) setMs(m);
+    const id = requestAnimationFrame(() => {
+      const m = draw(frameRef.current);
+      if (m !== undefined) setMs(m);
+    });
+    return () => cancelAnimationFrame(id);
   }, [draw, assetVersion]);
 
   // Animation loop: only redraw when the loop frame index changes
@@ -141,11 +146,20 @@ export function Stage() {
       let sl: Slice | undefined;
       if (out) sl = screen.slices.find(s => pointInQuad(s.outputContour || s.output, { x, y }));
       else sl = activeSlices({ setup, scene, disabled, screens: prefs.inputScreens }).slice().reverse().find(s => pointInQuad(s.inputContour || s.input, { x, y }));
+      // Colour under the cursor via a 1-px copy: calling getImageData on the
+      // preview canvas itself makes Chromium drop it to (slow) CPU rendering.
+      // Skipped while an animation plays, as the value would change every frame.
       let rgb = '';
-      try {
-        const d = c.getContext('2d')!.getImageData(Math.floor(x * renderScale), Math.floor(y * renderScale), 1, 1).data;
-        rgb = `${d[0]},${d[1]},${d[2]}`;
-      } catch { /* ignore */ }
+      if (!(animated && useStore.getState().playing)) {
+        try {
+          probe.current ??= document.createElement('canvas').getContext('2d', { willReadFrequently: true });
+          const p = probe.current!;
+          p.clearRect(0, 0, 1, 1);
+          p.drawImage(c, Math.floor(x * renderScale), Math.floor(y * renderScale), 1, 1, 0, 0, 1, 1);
+          const d = p.getImageData(0, 0, 1, 1).data;
+          rgb = `${d[0]},${d[1]},${d[2]}`;
+        } catch { /* ignore */ }
+      }
       setHover({ x: Math.floor(x), y: Math.floor(y), slice: sl ? `${sl.index + 1} · ${sl.name}` : null, rgb });
     });
   };

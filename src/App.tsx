@@ -1,15 +1,27 @@
-import { Component, ReactNode, useEffect, useState } from 'react';
+import { Component, ReactNode, Suspense, lazy, useEffect, useState } from 'react';
 import { Download, Film, Grid3x3, Image as ImageIcon, LayoutPanelLeft, Monitor, Palette, Pause, Play, Ruler, Save, X } from 'lucide-react';
 import { useStore } from './state/store';
 import { isAnimated } from './render/engine';
 import { Stage } from './ui/Stage';
 import { Seg } from './ui/controls';
-import { SetupPanel, readXmlFile } from './ui/panels/SetupPanel';
 import { PatternPanel } from './ui/panels/PatternPanel';
-import { AnimPanel, OverlaysPanel } from './ui/panels/LayersPanel';
-import { LogosPanel, addLogoFiles } from './ui/panels/LogosPanel';
-import { PresetsPanel, StylePanel } from './ui/panels/StylePanel';
-import { ExportPanel } from './ui/panels/ExportPanel';
+import { readXmlFile } from './ui/readXml';
+
+// Panels other than the default one load on demand (smaller first download),
+// and are prefetched when the browser is idle.
+const loadSetup = () => import('./ui/panels/SetupPanel');
+const loadLayers = () => import('./ui/panels/LayersPanel');
+const loadLogos = () => import('./ui/panels/LogosPanel');
+const loadStyle = () => import('./ui/panels/StylePanel');
+const loadExport = () => import('./ui/panels/ExportPanel');
+const SetupPanel = lazy(() => loadSetup().then(m => ({ default: m.SetupPanel })));
+const OverlaysPanel = lazy(() => loadLayers().then(m => ({ default: m.OverlaysPanel })));
+const AnimPanel = lazy(() => loadLayers().then(m => ({ default: m.AnimPanel })));
+const LogosPanel = lazy(() => loadLogos().then(m => ({ default: m.LogosPanel })));
+const StylePanel = lazy(() => loadStyle().then(m => ({ default: m.StylePanel })));
+const PresetsPanel = lazy(() => loadStyle().then(m => ({ default: m.PresetsPanel })));
+const ExportPanel = lazy(() => loadExport().then(m => ({ default: m.ExportPanel })));
+const addLogoFiles = (files: File[]) => loadLogos().then(m => m.addLogoFiles(files));
 
 const TABS = [
   { id: 'setup', label: 'Setup', icon: Monitor, panel: SetupPanel },
@@ -63,6 +75,11 @@ export default function App() {
     logos: scene.logos.filter(l => l.enabled).length,
     style: scene.deco.shapes.length,
   };
+
+  useEffect(() => {
+    const t = setTimeout(() => { loadSetup(); loadLayers(); loadLogos(); loadStyle(); loadExport(); }, 1500);
+    return () => clearTimeout(t);
+  }, []);
 
   // Drop anywhere: XML → setup, images → logos
   useEffect(() => {
@@ -139,7 +156,7 @@ export default function App() {
           <button onClick={() => setCollapsed(!collapsed)} title={collapsed ? 'Afficher le panneau' : 'Masquer le panneau'}><LayoutPanelLeft size={18} />{collapsed ? 'Ouvrir' : 'Plein écran'}</button>
         </nav>
         <section className="panel">
-          <Boundary name={tab.label} key={tab.id}><Panel /></Boundary>
+          <Boundary name={tab.label} key={tab.id}><Suspense fallback={<div className="panel-body muted">Chargement…</div>}><Panel /></Suspense></Boundary>
         </section>
         <Stage />
       </div>

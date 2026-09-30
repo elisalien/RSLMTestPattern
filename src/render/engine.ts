@@ -111,6 +111,7 @@ export class Renderer {
   private patternKey = '';
   private staticKey = '';
   private inputBuf: HTMLCanvasElement | null = null;
+  private memoRefs: unknown[] = [];
   lastMs = 0;
 
   private ensure(c: HTMLCanvasElement | null, w: number, h: number) {
@@ -130,7 +131,9 @@ export class Renderer {
     const pParams = withDefaults(pattern, scene.patternParams[pattern.id]);
 
     // ── Layer 1: background + pattern ──
-    const pKey = JSON.stringify([setupId(setup), scene.patternId, scene.patternScope, pParams, scene.themeId, scene.transparentBg, inp.disabled, inp.screens, inp.include, scale, scene.showTitle]);
+    const refs = [setup, scene, inp.disabled, inp.screens, inp.include, scale, assets.version()];
+    const same = this.memoRefs.length === refs.length && refs.every((r, i) => r === this.memoRefs[i]);
+    const pKey = same ? this.patternKey : JSON.stringify([setupId(setup), scene.patternId, scene.patternScope, pParams, scene.themeId, scene.transparentBg, inp.disabled, inp.screens, inp.include, scale, scene.showTitle]);
     if (pKey !== this.patternKey || !this.patternLayer) {
       this.patternLayer = this.ensure(this.patternLayer, W, H);
       const c = this.patternLayer.getContext('2d')!;
@@ -159,7 +162,7 @@ export class Renderer {
     }
 
     // ── Layer 2: static overlays + static logos ──
-    const sKey = JSON.stringify([pKey, scene.overlays, scene.logos.filter(l => !isLogoAnimated(l)), scene.deco, assets.version()]);
+    const sKey = same ? this.staticKey : JSON.stringify([pKey, scene.overlays, scene.logos.filter(l => !isLogoAnimated(l)), scene.deco, assets.version()]);
     if (sKey !== this.staticKey || !this.staticLayer) {
       this.staticLayer = this.ensure(this.staticLayer, W, H);
       const c = this.staticLayer.getContext('2d')!;
@@ -178,6 +181,7 @@ export class Renderer {
       this.staticKey = sKey;
     }
 
+    this.memoRefs = refs;
     // ── Compose frame ──
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -188,15 +192,30 @@ export class Renderer {
     ctx.drawImage(this.staticLayer, 0, 0);
 
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
-    if (decoAnimated(scene.deco)) for (const t of targets) safe(() => { enter(ctx, t); drawDeco(ctx, t, scene.deco, time); ctx.restore(); }, 'décor');
+    // Per-slice animated layers: enter (clip + transform) once per slice
+    const decoOn = decoAnimated(scene.deco);
+    const sliceAnims = ANIMS.filter(a => a.scope === 'slice' && a.id !== 'scroll' && scene.anims[a.id]?.enabled)
+      .map(a => [a, withDefaults(a, scene.anims[a.id].params)] as const);
+    const animLogos = scene.logos.filter(l => l.enabled && isLogoAnimated(l) && assets.get(l.assetId));
+    const sliceLogos = animLogos.filter(l => l.target !== 'comp');
+    if (decoOn || sliceAnims.length || sliceLogos.length) {
+      for (const t of targets) {
+        enter(ctx, t);
+        if (decoOn) safe(() => drawDeco(ctx, t, scene.deco, time), 'décor');
+        for (const [a, p] of sliceAnims) safe(() => { ctx.save(); a.draw(ctx, t, p, time, targets); ctx.restore(); }, a.name);
+        for (const l of sliceLogos) {
+          if (l.target === 'pick' && !l.sliceIds.includes(t.slice!.id)) continue;
+          safe(() => { ctx.save(); drawLogo(ctx, l, t, time); ctx.restore(); }, l.name);
+        }
+        ctx.restore();
+      }
+    }
     for (const a of ANIMS) {
       const st = scene.anims[a.id];
-      if (!st?.enabled || a.id === 'scroll') continue;
-      const p = withDefaults(a, st.params);
-      if (a.scope === 'comp') safe(() => { ctx.save(); a.draw(ctx, comp, p, time, targets); ctx.restore(); }, a.name);
-      else for (const t of targets) safe(() => { enter(ctx, t); a.draw(ctx, t, p, time, targets); ctx.restore(); }, a.name);
+      if (a.scope !== 'comp' || !st?.enabled) continue;
+      safe(() => { ctx.save(); a.draw(ctx, comp, withDefaults(a, st.params), time, targets); ctx.restore(); }, a.name);
     }
-    this.drawLogos(ctx, inp, targets, comp, time, true);
+    for (const l of animLogos) if (l.target === 'comp') safe(() => { ctx.save(); drawLogo(ctx, l, comp, time); ctx.restore(); }, l.name);
     ctx.restore();
     this.lastMs = performance.now() - t0;
   }
@@ -300,7 +319,7 @@ export class Renderer {
     this.lastMs += performance.now() - t0;
   }
 
-  invalidate() { this.patternKey = ''; this.staticKey = ''; }
+  invalidate() { this.patternKey = ''; this.staticKey = ''; this.memoRefs = []; }
 }
 
 function isAxisRect(q: Pt[]) {

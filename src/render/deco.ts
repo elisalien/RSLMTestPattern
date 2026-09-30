@@ -61,60 +61,152 @@ function colorsFor(d: DecoState, t: DrawTarget): string[] {
   return PALETTES[t.theme.id] || PALETTES.default;
 }
 
-export function drawDeco(ctx: CanvasRenderingContext2D, t: DrawTarget, d: DecoState, time: LoopTime | null) {
-  if (!decoActive(d)) return;
+// ─── Layout cache (the hot path runs every frame) ────────────
+
+interface Elem { kind: string; x: number; y: number; s: number; color: string; off: number; k: number }
+const layouts = new Map<string, Elem[]>();
+
+function layoutFor(t: DrawTarget, d: DecoState): Elem[] {
+  const key = `${d.shapes.join(',')}|${d.density}|${d.size}|${d.palette}|${d.seed}|${d.cycles}|${t.index}|${Math.round(t.w)}x${Math.round(t.h)}|${t.theme.id}|${t.color}`;
+  let l = layouts.get(key);
+  if (l) return l;
+  if (layouts.size > 600) layouts.clear();
   const colors = colorsFor(d, t);
   const base = Math.min(t.w, t.h) * 0.025 * (d.size / 100);
   const count = Math.max(1, Math.round(d.density * 4));
   const r = rng(d.seed * 7919 + t.index * 104729 + Math.round(t.w) * 13 + Math.round(t.h) * 31);
-  const ph = time ? time.phase : 0;
   const cyc = Math.max(1, Math.round(d.cycles));
-  ctx.save();
+  l = [];
   for (const kind of d.shapes) {
     for (let i = 0; i < count; i++) {
-      let x = r() * t.w, y = r() * t.h;
+      const x = r() * t.w, y = r() * t.h;
       const color = colors[Math.floor(r() * colors.length)];
       const s = base * (0.5 + r());
       const off = r();
       // Whole-number frequencies only → every motion loops seamlessly
-      const k = cyc * (1 + Math.floor(r() * 2));
-      const a = TAU * (ph * k + off);
-      let scale = 1, rot = 0, alpha = d.opacity / 100;
-      switch (d.motion) {
-        case 'float':
-          y += Math.sin(a) * s * 0.6;
-          x += Math.cos(a) * s * 0.3;
-          rot = Math.sin(a) * 0.15;
-          scale = 1 + Math.sin(a) * 0.1;
-          break;
-        case 'twinkle':
-          scale = 0.6 + 0.4 * (0.5 + 0.5 * Math.sin(a));
-          alpha *= 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(a));
-          break;
-        case 'spin':
-          rot = TAU * ph * k * (off > 0.5 ? 1 : -1);
-          break;
-        case 'rise': {
-          const p = (ph * cyc + off) % 1;
-          y = t.h + s - p * (t.h + s * 2);
-          x += Math.sin(TAU * (p + off)) * s;
-          rot = Math.sin(TAU * p) * 0.3;
-          break;
-        }
-      }
-      ctx.save();
-      ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
-      ctx.fillStyle = color;
-      ctx.strokeStyle = color;
-      ctx.lineWidth = Math.max(1, s * 0.1);
-      ctx.translate(x, y);
-      if (rot) ctx.rotate(rot);
-      if (scale !== 1) ctx.scale(scale, scale);
-      drawShape(ctx, kind, s, color, off);
-      ctx.restore();
+      l.push({ kind, x, y, s, color, off, k: cyc * (1 + Math.floor(r() * 2)) });
     }
   }
-  ctx.restore();
+  layouts.set(key, l);
+  return l;
+}
+
+export function drawDeco(ctx: CanvasRenderingContext2D, t: DrawTarget, d: DecoState, time: LoopTime | null) {
+  if (!decoActive(d)) return;
+  const elems = layoutFor(t, d);
+  const ph = time ? time.phase : 0;
+  const cyc = Math.max(1, Math.round(d.cycles));
+  const B = ctx.getTransform();
+  const px = Math.max(1e-3, Math.hypot(B.a, B.b)); // device px per local unit
+  const baseAlpha = ctx.globalAlpha;
+  let lastColor = '';
+  for (const e of elems) {
+    let x = e.x, y = e.y, scale = 1, rot = 0, alpha = d.opacity / 100;
+    const a = TAU * (ph * e.k + e.off);
+    switch (d.motion) {
+      case 'float':
+        y += Math.sin(a) * e.s * 0.6;
+        x += Math.cos(a) * e.s * 0.3;
+        rot = Math.sin(a) * 0.15;
+        scale = 1 + Math.sin(a) * 0.1;
+        break;
+      case 'twinkle': {
+        const w = 0.5 + 0.5 * Math.sin(a);
+        scale = 0.6 + 0.4 * w;
+        alpha *= 0.35 + 0.65 * w;
+        break;
+      }
+      case 'spin':
+        rot = TAU * ph * e.k * (e.off > 0.5 ? 1 : -1);
+        break;
+      case 'rise': {
+        const p = (ph * cyc + e.off) % 1;
+        y = t.h + e.s - p * (t.h + e.s * 2);
+        x += Math.sin(TAU * (p + e.off)) * e.s;
+        rot = Math.sin(TAU * p) * 0.3;
+        break;
+      }
+    }
+    const sc = scale * e.s;
+    if (e.kind === 'arrows') rot += e.off * TAU;
+    const cs = Math.cos(rot) * sc, sn = Math.sin(rot) * sc;
+    // M = B · T(x,y) · R(rot) · S(scale), set without save/restore or matrix objects
+    ctx.setTransform(
+      B.a * cs + B.c * sn, B.b * cs + B.d * sn,
+      -B.a * sn + B.c * cs, -B.b * sn + B.d * cs,
+      B.a * x + B.c * y + B.e, B.b * x + B.d * y + B.f,
+    );
+    ctx.globalAlpha = baseAlpha * Math.max(0, Math.min(1, alpha));
+    if (e.color !== lastColor) { ctx.fillStyle = ctx.strokeStyle = e.color; lastColor = e.color; }
+    const up = unitPath(e.kind);
+    ctx.fill(up.fill);
+    if (up.stroke) { ctx.lineWidth = Math.max(1 / (px * e.s), 0.1); ctx.stroke(up.stroke); }
+    if (up.accent) { ctx.fillStyle = up.accentColor!; ctx.fill(up.accent); ctx.fillStyle = e.color; }
+  }
+  ctx.setTransform(B);
+  ctx.globalAlpha = baseAlpha;
+}
+
+// Unit-size Path2D per shape: built once, filled thousands of times per frame
+interface UnitPath { fill: Path2D; stroke?: Path2D; accent?: Path2D; accentColor?: string }
+const unitPaths = new Map<string, UnitPath>();
+function unitPath(kind: string): UnitPath {
+  let u = unitPaths.get(kind);
+  if (u) return u;
+  const f = new Path2D();
+  const star = (points: number, inner: number) => {
+    for (let i = 0; i < points * 2; i++) {
+      const ang = (Math.PI * i) / points - Math.PI / 2;
+      const rr = i % 2 === 0 ? 1 : inner;
+      i ? f.lineTo(Math.cos(ang) * rr, Math.sin(ang) * rr) : f.moveTo(Math.cos(ang) * rr, Math.sin(ang) * rr);
+    }
+    f.closePath();
+  };
+  u = { fill: f };
+  switch (kind) {
+    case 'stars': star(4, 0.35); break;
+    case 'sparkles': star(6, 0.2); f.moveTo(0.15, 0); f.arc(0, 0, 0.15, 0, TAU); break;
+    case 'hearts':
+      f.moveTo(0, 0.36); f.bezierCurveTo(-0.6, -0.12, -0.3, -0.6, 0, -0.24); f.bezierCurveTo(0.3, -0.6, 0.6, -0.12, 0, 0.36); f.closePath();
+      break;
+    case 'music-notes': {
+      f.ellipse(0, 0.15, 0.175, 0.125, -0.3, 0, TAU);
+      const st = new Path2D();
+      st.moveTo(0.15, 0.1); st.lineTo(0.15, -0.4); st.quadraticCurveTo(0.4, -0.2, 0.15, -0.05);
+      u.stroke = st;
+      break;
+    }
+    case 'flowers': {
+      for (let i = 0; i < 5; i++) { const a = (TAU * i) / 5; f.moveTo(Math.cos(a) * 0.25 + 0.2, Math.sin(a) * 0.25); f.arc(Math.cos(a) * 0.25, Math.sin(a) * 0.25, 0.2, 0, TAU); }
+      const c = new Path2D(); c.arc(0, 0, 0.15, 0, TAU);
+      u.accent = c; u.accentColor = '#fff8d0';
+      break;
+    }
+    case 'diamonds': f.moveTo(0, -0.7); f.lineTo(0.42, 0); f.lineTo(0, 0.7); f.lineTo(-0.42, 0); f.closePath(); break;
+    case 'clouds':
+      for (const [cx, cy, r] of [[-0.18, 0, 0.21], [0.18, 0, 0.21], [0, -0.12, 0.27], [0, 0.06, 0.18]]) { f.moveTo(cx + r, cy); f.arc(cx, cy, r, 0, TAU); }
+      break;
+    case 'pixels': {
+      const cell = 0.8 / 3;
+      for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) if ((r + c) % 2 === 0) f.rect(-0.4 + c * cell, -0.4 + r * cell, cell * 0.9, cell * 0.9);
+      break;
+    }
+    case 'circles': {
+      f.arc(0, 0, 0.3, 0, TAU);
+      const st = new Path2D(); st.arc(0, 0, 0.6, 0, TAU); u.stroke = st;
+      break;
+    }
+    case 'crosses': f.rect(-0.105, -0.7, 0.21, 1.4); f.rect(-0.7, -0.105, 1.4, 0.21); break;
+    case 'arrows':
+      f.moveTo(0, -0.7); f.lineTo(0.35, -0.21); f.lineTo(0.105, -0.21); f.lineTo(0.105, 0.7);
+      f.lineTo(-0.105, 0.7); f.lineTo(-0.105, -0.21); f.lineTo(-0.35, -0.21); f.closePath();
+      break;
+    case 'lightning':
+      f.moveTo(0.07, -0.7); f.lineTo(-0.14, -0.035); f.lineTo(0.035, -0.035); f.lineTo(-0.105, 0.7); f.lineTo(0.175, 0.035); f.lineTo(-0.014, 0.035); f.closePath();
+      break;
+  }
+  unitPaths.set(kind, u);
+  return u;
 }
 
 // ─── Shapes (centred on 0,0) ────────────────────────────────────

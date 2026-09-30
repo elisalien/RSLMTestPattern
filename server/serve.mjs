@@ -17,6 +17,7 @@ import os from 'node:os';
 import { spawn, execFile } from 'node:child_process';
 import { once } from 'node:events';
 import { fileURLToPath } from 'node:url';
+import zlib from 'node:zlib';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = path.join(ROOT, 'dist');
@@ -213,17 +214,45 @@ async function api(req, res, url) {
   throw httpError(404, 'Route inconnue.');
 }
 
+// Text assets are compressed once (brotli, else gzip) and kept in memory
+const COMPRESSIBLE = new Set(['.html', '.js', '.css', '.svg', '.json']);
+const packed = new Map();
+function compressed(file, enc) {
+  const st = fs.statSync(file);
+  const key = `${file}|${enc}|${st.mtimeMs}`;
+  let buf = packed.get(key);
+  if (!buf) {
+    const raw = fs.readFileSync(file);
+    buf = enc === 'br'
+      ? zlib.brotliCompressSync(raw, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 11, [zlib.constants.BROTLI_PARAM_SIZE_HINT]: raw.length } })
+      : zlib.gzipSync(raw, { level: 9 });
+    packed.set(key, buf);
+  }
+  return buf;
+}
+
 function serveStatic(req, res, url) {
   let rel = decodeURIComponent(url.pathname);
-  let f = path.join(DIST, path.normalize(rel).replace(/^([/\\])+/, ''));
+  let f = path.join(DIST, path.normalize(rel).replace(/^[/\\]+/, ''));
   if (!f.startsWith(DIST)) return send(res, 403, 'Interdit', 'text/plain');
   if (!fs.existsSync(f) || fs.statSync(f).isDirectory()) f = path.join(DIST, 'index.html');
   if (!fs.existsSync(f)) return send(res, 500, 'Build manquant : lance « npm run build ».', 'text/plain; charset=utf-8');
   const ext = path.extname(f);
-  res.writeHead(200, {
+  const headers = {
     'content-type': MIME[ext] || 'application/octet-stream',
     'cache-control': f.includes(`${path.sep}assets${path.sep}`) ? 'public, max-age=31536000, immutable' : 'no-cache',
-  });
+    'vary': 'accept-encoding',
+  };
+  const accept = String(req.headers['accept-encoding'] || '');
+  const want = accept.toLowerCase().split(',').map(e => e.trim().split(';')[0]);
+  const enc = !COMPRESSIBLE.has(ext) ? null : want.includes('br') ? 'br' : want.includes('gzip') ? 'gzip' : null;
+  if (enc) {
+    const body = compressed(f, enc);
+    res.writeHead(200, { ...headers, 'content-encoding': enc, 'content-length': body.length });
+    return res.end(req.method === 'HEAD' ? undefined : body);
+  }
+  res.writeHead(200, headers);
+  if (req.method === 'HEAD') return res.end();
   fs.createReadStream(f).pipe(res);
 }
 

@@ -4,7 +4,12 @@ import { useStore, defaultScene } from '../../state/store';
 import { THEMES } from '../../render/themes';
 import { PanelHead, Select, Slider, TextInput, Toggle } from '../controls';
 import { DECO_MOTIONS, DECO_SHAPES, DecoState } from '../../render/deco';
-import { patternThumb } from '../thumbs';
+import { useThumb } from '../thumbs';
+
+function ThemeThumb({ themeId }: { themeId: string }) {
+  const url = useThumb('mapping-id', themeId);
+  return url ? <img src={url} alt="" /> : <div className="thumb-wait" />;
+}
 import { download } from '../../export/exporter';
 
 export function StylePanel() {
@@ -23,7 +28,7 @@ export function StylePanel() {
         <div className="gallery">
           {THEMES.map(t => (
             <button key={t.id} className={`tile ${t.id === scene.themeId ? 'on' : ''}`} onClick={() => setScene({ themeId: t.id })} title={t.desc}>
-              <img src={patternThumb('mapping-id', t.id)} alt="" />
+              <ThemeThumb themeId={t.id} />
               <span>{t.name}<br /><small className="muted">{t.desc}</small></span>
             </button>
           ))}

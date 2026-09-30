@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Film, FolderOpen, Image as ImageIcon, RefreshCw, X } from 'lucide-react';
 import { useStore } from '../../state/store';
 import { CODECS, ExportContext, Progress, ServerHealth, buildItems, exportBaseName, exportPNG, exportVideo, serverHealth } from '../../export/exporter';
@@ -8,8 +8,16 @@ import { Field, PanelHead, Seg, Slider } from '../controls';
 const fmtSize = (b: number) => (b > 1e9 ? `${(b / 1e9).toFixed(2)} Go` : `${(b / 1e6).toFixed(1)} Mo`);
 
 export function ExportPanel() {
-  const st = useStore();
-  const { exportPrefs: ep, setExportPrefs, scene } = st;
+  // Narrow subscriptions: this panel must not re-render on unrelated store changes
+  const setup = useStore(s => s.setup);
+  const scene = useStore(s => s.scene);
+  const disabled = useStore(s => s.disabled);
+  const view = useStore(s => s.view);
+  const screenId = useStore(s => s.screenId);
+  const inputScreens = useStore(s => s.prefs.inputScreens);
+  const ep = useStore(s => s.exportPrefs);
+  const setExportPrefs = useStore(s => s.setExportPrefs);
+  const toast = useStore(s => s.toast);
   const [health, setHealth] = useState<ServerHealth | null | undefined>(undefined);
   const [busy, setBusy] = useState<Progress | null>(null);
   const [result, setResult] = useState<{ name: string; path?: string; size: number }[] | null>(null);
@@ -18,8 +26,8 @@ export function ExportPanel() {
   const check = () => { setHealth(undefined); serverHealth().then(setHealth); };
   useEffect(check, []);
 
-  const ctx: ExportContext = { setup: st.setup, scene, disabled: st.disabled, view: st.view, screenId: st.screenId, inputScreens: st.prefs.inputScreens };
-  const items = buildItems(ctx, ep.what, ep.scale);
+  const ctx: ExportContext = { setup, scene, disabled, view, screenId, inputScreens };
+  const items = useMemo(() => buildItems(ctx, ep.what, ep.scale), [setup, scene, disabled, view, screenId, inputScreens, ep.what, ep.scale]);
   const serverCodecs = health?.ffmpeg ? health.encoders : [];
   const codec = CODECS.find(c => c.id === ep.codec) || CODECS[CODECS.length - 1];
   const codecOk = codec.where === 'browser' || serverCodecs.includes(codec.id);
@@ -28,8 +36,8 @@ export function ExportPanel() {
   const alphaMismatch = scene.transparentBg && !codec.alpha;
 
   const runPNG = async () => {
-    try { await exportPNG(items, 0, `${exportBaseName(ctx)}_${scene.patternId}`); st.toast('ok', `${items.length} image(s) exportée(s).`); }
-    catch (e) { st.toast('error', (e as Error).message); }
+    try { await exportPNG(items, 0, `${exportBaseName(ctx)}_${scene.patternId}`); toast('ok', `${items.length} image(s) exportée(s).`); }
+    catch (e) { toast('error', (e as Error).message); }
   };
 
   const runVideo = async () => {
@@ -39,10 +47,10 @@ export function ExportPanel() {
     try {
       const r = await exportVideo(items, { codec: codec.id, fps: scene.fps, frames, loops: ep.loops, alpha: scene.transparentBg }, setBusy, abort.current.signal);
       setResult(r.files);
-      st.toast('ok', `${r.files.length} vidéo(s) prête(s).`);
+      toast('ok', `${r.files.length} vidéo(s) prête(s).`);
     } catch (e) {
       const err = e as Error;
-      st.toast(err.name === 'AbortError' ? 'warn' : 'error', err.name === 'AbortError' ? 'Export annulé.' : err.message);
+      toast(err.name === 'AbortError' ? 'warn' : 'error', err.name === 'AbortError' ? 'Export annulé.' : err.message);
     } finally {
       setBusy(null);
       abort.current = null;
@@ -61,7 +69,7 @@ export function ExportPanel() {
           ]} />
         </Field>
         <div className="muted">
-          {ep.what === 'view' && (st.view === 'output' ? 'La sortie de l’écran affiché (déformation comprise).' : 'La composition : à lancer comme clip dans Resolume.')}
+          {ep.what === 'view' && (view === 'output' ? 'La sortie de l’écran affiché (déformation comprise).' : 'La composition : à lancer comme clip dans Resolume.')}
           {ep.what === 'comp' && 'La composition entière : le clip à jouer dans Resolume.'}
           {ep.what === 'screens' && 'Un fichier par écran de sortie, à sa résolution.'}
           {ep.what === 'slices' && 'Un fichier par slice, recadré (et redressé si tourné).'}

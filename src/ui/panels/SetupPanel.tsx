@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { FileUp, Monitor, RotateCcw, Eye } from 'lucide-react';
 import { useStore } from '../../state/store';
+import { readXmlFile } from '../readXml';
 import { PanelHead, Seg, Slider, Switch, TextInput } from '../controls';
 import { sliceHsl, themeById } from '../../render/themes';
 import { ratioLabel } from '../../core/geometry';
@@ -13,12 +14,6 @@ const SIZES = [
   { label: '1500 × 1200', w: 1500, h: 1200 },
   { label: '1280 × 720', w: 1280, h: 720 },
 ];
-
-export function readXmlFile(file: File) {
-  const reader = new FileReader();
-  reader.onload = () => useStore.getState().loadXML(String(reader.result || ''), file.name);
-  reader.readAsText(file);
-}
 
 export function SetupPanel() {
   const setup = useStore(s => s.setup);

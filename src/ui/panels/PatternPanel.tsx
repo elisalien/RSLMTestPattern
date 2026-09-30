@@ -1,7 +1,13 @@
 import { useStore } from '../../state/store';
 import { PATTERNS, PATTERN_CATEGORIES, patternById, withDefaults } from '../../render/patterns';
 import { PanelHead, ParamsEditor, Seg } from '../controls';
-import { patternThumb } from '../thumbs';
+import { useThumb } from '../thumbs';
+import { Params } from '../../core/types';
+
+function Thumb({ id, themeId, params }: { id: string; themeId: string; params?: Params }) {
+  const url = useThumb(id, themeId, params);
+  return url ? <img src={url} alt="" /> : <div className="thumb-wait" />;
+}
 
 export function PatternPanel() {
   const scene = useStore(s => s.scene);
@@ -33,7 +39,7 @@ export function PatternPanel() {
             <div className="gallery">
               {PATTERNS.filter(p => p.category === cat).map(p => (
                 <button key={p.id} className={`tile ${p.id === def.id ? 'on' : ''}`} onClick={() => setPattern(p.id)} title={p.desc}>
-                  <img src={patternThumb(p.id, scene.themeId, scene.patternParams[p.id])} alt="" loading="lazy" />
+                  <Thumb id={p.id} themeId={scene.themeId} params={scene.patternParams[p.id]} />
                   <span>{p.name}</span>
                 </button>
               ))}
