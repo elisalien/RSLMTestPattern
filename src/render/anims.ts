@@ -158,18 +158,24 @@ export const ANIMS: AnimDef[] = [
       { key: 'text', label: 'Texte', type: 'text', placeholder: 'Nom du show — test en cours' },
       { key: 'size', label: 'Hauteur', type: 'range', min: 3, max: 25, step: 1, unit: '%' },
       { key: 'cycles', label: 'Passages par boucle', type: 'range', min: 1, max: 8, step: 1 },
+      { key: 'space', label: 'Espace', type: 'select', options: [{ value: 'comp', label: 'Composition (continu)' }, { value: 'slice', label: 'Chaque slice' }], help: '« Composition » : le texte passe d’une slice à l’autre sans coupure, avec la même hauteur partout.' },
     ],
-    defaults: { text: 'TEST PATTERN', size: 8, cycles: 1 },
+    defaults: { text: 'TEST PATTERN', size: 8, cycles: 1, space: 'comp' },
     draw(ctx, t, p, time) {
-      const h = t.h * P.n(p, 'size', 8) / 100;
-      const str = (P.s(p, 'text') || t.label) + '   •   ';
+      const comp = P.s(p, 'space', 'comp') === 'comp' && t.angle === 0;
+      // Composition mode: one band height for every slice of the setup (same in every view
+      // and export), text phase taken from the comp x
+      const hs = t.setup.screens.flatMap(sc => sc.slices).filter(sl => sl.frame.angle === 0).map(sl => sl.frame.h);
+      const refH = comp && hs.length ? Math.min(...hs) : t.h;
+      const h = refH * P.n(p, 'size', 8) / 100;
+      const str = (P.s(p, 'text') || (comp ? t.setup.name : t.label)) + '   •   ';
       ctx.fillStyle = 'rgba(10,11,14,0.85)'; ctx.fillRect(0, t.h - h, t.w, h);
       ctx.font = `700 ${h * 0.6}px ${t.theme.font}`;
       const tw = Math.max(1, ctx.measureText(str).width);
-      const reps = Math.ceil(t.w / tw) + 1;
-      const off = CYCLE(time.phase, P.n(p, 'cycles', 1)) * tw;
+      const off = CYCLE(time.phase, P.n(p, 'cycles', 1)) * tw + (comp ? t.origin.x : 0);
+      const x0 = -(((off % tw) + tw) % tw);
       ctx.save(); ctx.beginPath(); ctx.rect(0, t.h - h, t.w, h); ctx.clip();
-      for (let i = 0; i <= reps; i++) text(ctx, str, i * tw - off, t.h - h / 2, h * 0.6, { align: 'left', color: '#fff', font: t.theme.font, weight: 700, outline: null });
+      for (let x = x0; x < t.w; x += tw) text(ctx, str, x, t.h - h / 2, h * 0.6, { align: 'left', color: '#fff', font: t.theme.font, weight: 700, outline: null });
       ctx.restore();
     },
   },

@@ -14,10 +14,12 @@ export interface DecoState {
   cycles: number;    // whole cycles per loop
   palette: 'theme' | 'slice' | 'white' | 'rainbow';
   seed: number;
+  /** 'comp': one layout across the composition, continuous between slices. Missing = 'comp'. */
+  space?: 'comp' | 'slice';
 }
 
 export const DEFAULT_DECO: DecoState = {
-  shapes: [], density: 3, size: 100, opacity: 60, motion: 'static', cycles: 1, palette: 'theme', seed: 1,
+  shapes: [], density: 3, size: 100, opacity: 60, motion: 'static', cycles: 1, palette: 'theme', seed: 1, space: 'comp',
 };
 
 export const DECO_SHAPES: { id: string; label: string; icon: string }[] = [
@@ -91,9 +93,50 @@ function layoutFor(t: DrawTarget, d: DecoState): Elem[] {
   return l;
 }
 
+interface CompLayout { elems: Elem[]; box: { x: number; y: number; w: number; h: number } }
+const compLayouts = new Map<string, CompLayout>();
+
+/** One layout over the whole composition, so shapes cross slice edges without a cut.
+ *  Built from the full setup (not the visible slices) so every view and export agrees. */
+function compLayoutFor(t: DrawTarget, d: DecoState): CompLayout {
+  const setup = t.setup;
+  const box = { x: 0, y: 0, w: setup.comp.w, h: setup.comp.h };
+  const frames = setup.screens.flatMap(sc => sc.slices.map(sl => sl.frame));
+  const mins = frames.map(f => Math.min(f.w, f.h)).sort((a, b) => a - b);
+  const ref = mins[Math.floor(mins.length / 2)] || Math.min(box.w, box.h);
+  const sliceArea = frames.length ? frames.reduce((a, f) => a + f.w * f.h, 0) / frames.length : box.w * box.h;
+  const key = `${d.shapes.join(',')}|${d.density}|${d.size}|${d.palette}|${d.seed}|${d.cycles}|${Math.round(box.w)}x${Math.round(box.h)}|${Math.round(ref)}|${Math.round(sliceArea)}|${t.theme.id}`;
+  let l = compLayouts.get(key);
+  if (l) return l;
+  if (compLayouts.size > 100) compLayouts.clear();
+  const colors = colorsFor(d, t);
+  const base = ref * 0.025 * (d.size / 100);
+  // Same density per area as the per-slice layout
+  const count = Math.max(1, Math.round(d.density * 4 * (box.w * box.h) / Math.max(1, sliceArea)));
+  const r = rng(d.seed * 7919 + Math.round(box.w) * 13 + Math.round(box.h) * 31);
+  const cyc = Math.max(1, Math.round(d.cycles));
+  const elems: Elem[] = [];
+  for (const kind of d.shapes) {
+    for (let i = 0; i < count; i++) {
+      const x = box.x + r() * box.w, y = box.y + r() * box.h;
+      const color = colors[Math.floor(r() * colors.length)];
+      const s = base * (0.5 + r());
+      const off = r();
+      elems.push({ kind, x, y, s, color, off, k: cyc * (1 + Math.floor(r() * 2)) });
+    }
+  }
+  l = { elems, box };
+  compLayouts.set(key, l);
+  return l;
+}
+
 export function drawDeco(ctx: CanvasRenderingContext2D, t: DrawTarget, d: DecoState, time: LoopTime | null) {
   if (!decoActive(d)) return;
-  const elems = layoutFor(t, d);
+  const cl = d.space !== 'slice' && t.slice ? compLayoutFor(t, d) : null;
+  const elems = cl ? cl.elems : layoutFor(t, d);
+  // Area the shapes move in (rise motion): comp union box or the slice itself
+  const area = cl ? cl.box : { x: 0, y: 0, w: t.w, h: t.h };
+  const ca = Math.cos(-t.angle), sa = Math.sin(-t.angle);
   const ph = time ? time.phase : 0;
   const cyc = Math.max(1, Math.round(d.cycles));
   const B = ctx.getTransform();
@@ -121,12 +164,21 @@ export function drawDeco(ctx: CanvasRenderingContext2D, t: DrawTarget, d: DecoSt
         break;
       case 'rise': {
         const p = (ph * cyc + e.off) % 1;
-        y = t.h + e.s - p * (t.h + e.s * 2);
+        y = area.y + area.h + e.s - p * (area.h + e.s * 2);
         x += Math.sin(TAU * (p + e.off)) * e.s;
         rot = Math.sin(TAU * p) * 0.3;
         break;
       }
     }
+    if (cl) {
+      // Composition → slice local frame, then skip shapes that cannot touch this slice
+      const dx = x - t.origin.x, dy = y - t.origin.y;
+      x = dx * ca - dy * sa; y = dx * sa + dy * ca;
+      const m = e.s * 1.5;
+      if (x < -m || y < -m || x > t.w + m || y > t.h + m) continue;
+      rot -= t.angle;
+    }
+    const color = cl && d.palette === 'slice' ? t.color : e.color;
     const sc = scale * e.s;
     if (e.kind === 'arrows') rot += e.off * TAU;
     const cs = Math.cos(rot) * sc, sn = Math.sin(rot) * sc;
@@ -137,11 +189,11 @@ export function drawDeco(ctx: CanvasRenderingContext2D, t: DrawTarget, d: DecoSt
       B.a * x + B.c * y + B.e, B.b * x + B.d * y + B.f,
     );
     ctx.globalAlpha = baseAlpha * Math.max(0, Math.min(1, alpha));
-    if (e.color !== lastColor) { ctx.fillStyle = ctx.strokeStyle = e.color; lastColor = e.color; }
+    if (color !== lastColor) { ctx.fillStyle = ctx.strokeStyle = color; lastColor = color; }
     const up = unitPath(e.kind);
     ctx.fill(up.fill);
     if (up.stroke) { ctx.lineWidth = Math.max(1 / (px * e.s), 0.1); ctx.stroke(up.stroke); }
-    if (up.accent) { ctx.fillStyle = up.accentColor!; ctx.fill(up.accent); ctx.fillStyle = e.color; }
+    if (up.accent) { ctx.fillStyle = up.accentColor!; ctx.fill(up.accent); ctx.fillStyle = color; }
   }
   ctx.setTransform(B);
   ctx.globalAlpha = baseAlpha;

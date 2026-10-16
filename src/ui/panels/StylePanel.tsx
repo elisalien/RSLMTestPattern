@@ -61,6 +61,9 @@ function DecoSection() {
         </div>
         {on && (
           <>
+            <Select label="Espace" value={deco.space ?? 'comp'} onChange={v => set({ space: v as DecoState['space'] })} options={[
+              { value: 'comp', label: 'Composition (continu entre slices)' }, { value: 'slice', label: 'Chaque slice à part' },
+            ]} />
             <Select label="Mouvement" value={deco.motion} onChange={v => set({ motion: v as DecoState['motion'] })} options={DECO_MOTIONS} />
             {deco.motion !== 'static' && <Slider label="Cycles par boucle" value={deco.cycles} min={1} max={8} onChange={v => set({ cycles: Math.round(v) })} />}
             <Slider label="Quantité" value={deco.density} min={1} max={10} step={0.5} onChange={v => set({ density: v })} />
